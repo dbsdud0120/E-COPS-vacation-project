@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+
+  backend:
+    build:
+      context: ./backend
+    container_name: vulnerable-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+    depends_on:
+      - db
+    networks:
+      - security-network
+
+  scanner:
+    build:
+      context: ./scanner
+    container_name: security-scanner
+    depends_on:
+      - backend
+    networks:
+      - security-network
+
+  report:
+    build:
+      context: ./report
+    container_name: report-generator
+    ports:
+      - "8501:8501"
+    depends_on:
+      - scanner
+    networks:
+      - security-network
+
+  db:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: security_db
+      MYSQL_USER: security
+      MYSQL_PASSWORD: security123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - security-network
+
+volumes:
+  mysql-data:
+
+networks:
+  security-network:
+    driver: bridge
