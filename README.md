@@ -20,12 +20,22 @@ Security Scanner Platform은 취약한 웹 애플리케이션과 REST API를 자
 ```
 각 팀원별 branch에서 코드 작성 후 PR을 통해 리뷰하고 main에 통합
 
-├──main                      # 최종 결과물
-├── feature/backend          # 취약 웹 서비스 및 REST API
-├── feature/scanner          # 웹/API 자동 진단 엔진
-├── feature/report           # 결과 분석 및 리포트 생성
-├── feature/devops           # Docker 및 통합
+├── main                      # 최종 결과물
+├── feature/backend           # 취약 웹 서비스 및 REST API
+├── feature/scanner           # 웹/API 자동 진단 엔진
+├── feature/report            # 결과 분석 및 리포트 생성
+└── feature/devops            # Docker 및 통합
+```
 
+## Repository 구조
+
+```
+security-scanner-platform/
+├── backend/
+├── scanner/
+├── report/
+├── docker-compose.yml
+└── README.md
 ```
 
 ---
@@ -51,7 +61,6 @@ Security Scanner Platform은 취약한 웹 애플리케이션과 REST API를 자
                                    Report
                               (HTML / PDF)
 ```
-
 ---
 
 ## 기술 스택
