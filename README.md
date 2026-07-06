@@ -15,17 +15,17 @@ Security Scanner Platform은 취약한 웹 애플리케이션과 REST API를 자
 
 ---
 
-## Repository 구조
+## Git branch
 
 ```
-security-scanner-platform/
-│
-├── backend/          # 취약 웹 서비스 및 REST API
-├── scanner/          # 웹/API 자동 진단 엔진
-├── report/           # 결과 분석 및 리포트 생성
-│
-├── docker-compose.yml
-└── README.md
+각 팀원별 branch에서 코드 작성 후 PR을 통해 리뷰하고 main에 통합
+
+├──main                      # 최종 결과물
+├── feature/backend          # 취약 웹 서비스 및 REST API
+├── feature/scanner          # 웹/API 자동 진단 엔진
+├── feature/report           # 결과 분석 및 리포트 생성
+├── feature/devops           # Docker 및 통합
+
 ```
 
 ---
@@ -34,7 +34,7 @@ security-scanner-platform/
 
 ```
              ┌───────────────────────┐
-             │       사용자(User)      │
+             │       사용자(User)    │
              └───────────┬───────────┘
                          │
                          ▼
@@ -64,20 +64,6 @@ security-scanner-platform/
 | Report | Python, Pandas, ReportLab |
 | Container | Docker, Docker Compose |
 | API | Swagger(OpenAPI) |
-
----
-
-## 실행 방법
-
-```bash
-git clone <repository-url>
-
-cd security-scanner-platform
-
-docker compose up --build
-```
-
-※ 각 서비스의 Dockerfile이 준비된 이후 실행 가능합니다.
 
 ---
 
