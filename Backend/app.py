@@ -365,8 +365,7 @@ def api_post(post_id):
 # 실제 서비스에서는 사용하면 안 됨
 # ==========================================
 
-@app.route("/vuln/login", methods=["POST"])
-def vuln_login():
+
 @app.route("/vuln/login", methods=["POST"])
 def vuln_login():
 
