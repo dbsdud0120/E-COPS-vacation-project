@@ -1,218 +1,453 @@
-from flask import Flask, render_template, request, jsonify
-import sqlite3
+from flask import Flask, render_template, request, jsonify, session
+import pymysql
+from werkzeug.security import generate_password_hash, check_password_hash
+
 
 app = Flask(__name__)
 
+# 세션 암호화 키
+app.secret_key = "evulnscanner-secret-key"
+
+
+# MySQL 연결 함수
+def get_db():
+
+    conn = pymysql.connect(
+        host="localhost",
+        user="root",
+        password="1234",
+        database="evulnscanner",
+        charset="utf8mb4"
+    )
+
+    return conn
+
+
+
 @app.route("/")
 def home():
+
     return render_template("index.html")
 
 
+
+# 회원가입
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
 
     if request.method == "POST":
 
-        username = request.form["username"]
-        password = request.form["password"]
+        username = request.form.get("username")
+        password = request.form.get("password")
 
-        conn = sqlite3.connect("database.db")
+
+        # 입력값 검증
+        if not username or not password:
+            return "아이디와 비밀번호를 입력하세요."
+
+
+        # 비밀번호 해시
+        hashed_password = generate_password_hash(password)
+
+
+        conn = get_db()
         cursor = conn.cursor()
 
+
         cursor.execute(
-            "INSERT INTO users(username,password) VALUES (?,?)",
-            (username, password)
+            """
+            INSERT INTO users(username,password)
+            VALUES(%s,%s)
+            """,
+            (username, hashed_password)
         )
+
 
         conn.commit()
         conn.close()
 
+
         return "회원가입 성공!"
+
 
     return render_template("signup.html")
 
 
+
+
+# 사용자 조회 (인증 테스트)
 @app.route("/users")
 def users():
 
-    conn = sqlite3.connect("database.db")
+    if "username" not in session:
+        return jsonify({
+            "error": "로그인이 필요합니다."
+        }), 401
+
+    conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM users")
+    cursor.execute(
+        "SELECT id, username FROM users"
+    )
 
     users = cursor.fetchall()
 
     conn.close()
 
-    return str(users)
+    result = []
+
+    for user in users:
+        result.append({
+            "id": user[0],
+            "username": user[1]
+        })
+
+    return jsonify(result)
 
 
+
+
+#
 @app.route("/login", methods=["GET", "POST"])
 def login():
 
     if request.method == "POST":
 
-        username = request.form["username"]
-        password = request.form["password"]
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
 
-        conn = sqlite3.connect("database.db")
+        # 입력값 검증
+        if not username or not password:
+            return "아이디와 비밀번호를 모두 입력하세요."
+
+        conn = get_db()
         cursor = conn.cursor()
 
         cursor.execute(
-            "SELECT * FROM users WHERE username=? AND password=?",
-            (username, password)
+            """
+            SELECT * FROM users
+            WHERE username=%s
+            """,
+            (username,)
         )
 
         user = cursor.fetchone()
 
         conn.close()
 
-        if user:
+        if user and check_password_hash(user[2], password):
+
+            # 로그인 성공 → 세션 저장
+            session["username"] = username
+
             return "로그인 성공!"
-        else:
-            return "로그인 실패!"
+
+        return "아이디 또는 비밀번호가 올바르지 않습니다."
 
     return render_template("login.html")
 
 
-@app.route("/posts", methods=["GET", "POST"])
+
+
+# 게시글
+@app.route("/posts", methods=["GET","POST"])
 def posts():
 
-    conn = sqlite3.connect("database.db")
+
+    conn = get_db()
     cursor = conn.cursor()
+
+
 
     if request.method == "POST":
 
-        title = request.form["title"]
-        content = request.form["content"]
-        writer = request.form["writer"]
+
+        title = request.form.get("title")
+        content = request.form.get("content")
+        writer = request.form.get("writer")
+
+
+        # 입력값 검증
+        if not title or not content or not writer:
+
+            return "모든 값을 입력하세요."
+
 
         cursor.execute(
-            "INSERT INTO posts(title, content, writer) VALUES (?, ?, ?)",
-            (title, content, writer)
+
+            """
+            INSERT INTO posts(title,content,writer)
+            VALUES(%s,%s,%s)
+            """,
+
+            (title,content,writer)
+
         )
+
 
         conn.commit()
 
-    keyword = request.args.get("keyword", "")
+
+
+    keyword = request.args.get("keyword","")
+
+
 
     if keyword:
+
+
         cursor.execute(
-            "SELECT * FROM posts WHERE title LIKE ? ORDER BY id DESC",
+
+            """
+            SELECT * FROM posts
+            WHERE title LIKE %s
+            ORDER BY id DESC
+            """,
+
             (f"%{keyword}%",)
+
         )
+
+
     else:
+
+
         cursor.execute(
-            "SELECT * FROM posts ORDER BY id DESC"
+
+            """
+            SELECT * FROM posts
+            ORDER BY id DESC
+            """
+
         )
+
+
 
     posts = cursor.fetchall()
 
+
     conn.close()
 
+
+
     return render_template(
+
         "posts.html",
+
         posts=posts,
+
         keyword=keyword
+
     )
 
 
+
+
+
+
+# 게시글 API 전체 조회 + 검색
 @app.route("/api/posts")
 def api_posts():
 
-    conn = sqlite3.connect("database.db")
+    keyword = request.args.get("keyword", "")
+
+    conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM posts")
+
+    if keyword:
+
+        cursor.execute(
+            """
+            SELECT * FROM posts
+            WHERE title LIKE %s
+            ORDER BY id DESC
+            """,
+            (f"%{keyword}%",)
+        )
+
+    else:
+
+        cursor.execute(
+            """
+            SELECT * FROM posts
+            ORDER BY id DESC
+            """
+        )
+
 
     posts = cursor.fetchall()
 
+
     conn.close()
 
+
     result = []
+
 
     for post in posts:
 
         result.append({
+
             "id": post[0],
             "title": post[1],
             "content": post[2],
             "writer": post[3]
+
         })
+
 
     return jsonify(result)
 
 
+
+
+
+
+# 게시글 API 단일 조회
 @app.route("/api/posts/<int:post_id>")
 def api_post(post_id):
 
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
+
+    conn=get_db()
+    cursor=conn.cursor()
+
 
     cursor.execute(
-        "SELECT * FROM posts WHERE id=?",
+
+        """
+        SELECT * FROM posts
+        WHERE id=%s
+        """,
+
         (post_id,)
+
     )
 
-    post = cursor.fetchone()
+
+    post=cursor.fetchone()
+
 
     conn.close()
 
+
+
     if post is None:
-        return jsonify({"error": "게시글 없음"}), 404
+
+
+        return jsonify(
+            {
+                "error":"게시글 없음"
+            }
+        ),404
+
+
 
     return jsonify({
 
-        "id": post[0],
-        "title": post[1],
-        "content": post[2],
-        "writer": post[3]
+        "id":post[0],
+        "title":post[1],
+        "content":post[2],
+        "writer":post[3]
 
     })
 
 
-@app.route("/api/vuln/login", methods=["POST"])
+
+
+
+
+# ==========================================
+# 의도적 취약점 예제: SQL Injection
+# 사용자 입력값(username, password)을 검증 없이
+# SQL 쿼리에 직접 삽입하는 취약한 코드
+# 실제 서비스에서는 사용하면 안 됨
+# ==========================================
+
+@app.route("/vuln/login", methods=["POST"])
+def vuln_login():
+@app.route("/vuln/login", methods=["POST"])
 def vuln_login():
 
-    username = request.form.get("username")
-    password = request.form.get("password")
 
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-
-    query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
-
-    print(query)
-
-    cursor.execute(query)
-
-    user = cursor.fetchone()
-
-    conn.close()
-
-    if user:
-        return jsonify({
-            "success": True,
-            "message": "로그인 성공"
-        })
-
-    else:
-        return jsonify({
-            "success": False,
-            "message": "로그인 실패"
-        })
+    username=request.form.get("username")
+    password=request.form.get("password")
 
 
-@app.route("/vuln/comment")
-def comment():
+    conn=get_db()
+    cursor=conn.cursor()
 
-    text = request.args.get("text", "")
 
-    return f"""
-    <h2>댓글</h2>
-    <p>{text}</p>
+    # 의도적 취약점 발생 부분
+# Prepared Statement를 사용하지 않고
+# 문자열 조합으로 SQL Query 생성
+    query=f"""
+    SELECT * FROM users
+    WHERE username='{username}'
+    AND password='{password}'
     """
 
 
-if __name__ == "__main__":
+    print(query)
+
+
+    cursor.execute(query)
+
+
+    user=cursor.fetchone()
+
+
+    conn.close()
+
+
+
+    if user:
+
+        return jsonify({
+
+            "success":True,
+            "message":"로그인 성공"
+
+        })
+
+
+    return jsonify({
+
+        "success":False,
+        "message":"로그인 실패"
+
+    })
+
+
+
+
+
+
+# ==========================================
+# 의도적 취약점 예제: Stored XSS
+# 사용자 입력값을 HTML escaping 없이 출력하는 취약한 코드
+# 실제 서비스에서는 입력값 검증 및 escaping 필요
+# ==========================================
+@app.route("/vuln/comment")
+def comment():
+
+
+    text=request.args.get("text","")
+
+
+    return f"""
+
+    <h2>댓글</h2>
+
+    <p>{text}</p>
+
+    """
+
+
+
+
+
+if __name__=="__main__":
+
     app.run(debug=True)
