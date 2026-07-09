@@ -31,9 +31,9 @@ Security Scanner Platform은 취약한 웹 애플리케이션과 REST API를 자
 
 ```
 security-scanner-platform/
-├── backend/
-├── scanner/
-├── report/
+├── Backend/
+├── Scanner/
+├── Report/
 ├── docker-compose.yml
 └── README.md
 ```
