@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>게시판</title>
+</head>
+<body>
+
+<h1>게시판</h1>
+
+<h2>게시글 작성</h2>
+
+<form method="POST">
+
+    제목 :
+    <input type="text" name="title" required>
+
+    <br><br>
+
+    내용 :
+    <textarea name="content" required></textarea>
+
+    <br><br>
+
+    작성자 :
+    <input type="text" name="writer" required>
+
+    <br><br>
+
+    <input type="submit" value="작성">
+
+</form>
+
+<hr>
+
+<h2>게시글 검색</h2>
+
+<form method="GET">
+
+    <input
+        type="text"
+        name="keyword"
+        placeholder="제목을 입력하세요"
+        value="{{ keyword }}"
+    >
+
+    <input type="submit" value="검색">
+
+</form>
+
+<hr>
+
+<h2>게시글 목록</h2>
+
+{% if posts %}
+
+    {% for post in posts %}
+
+        <h3>{{ post[1] }}</h3>
+
+        <p>{{ post[2] }}</p>
+
+        <small>작성자 : {{ post[3] }}</small>
+
+        <hr>
+
+    {% endfor %}
+
+{% else %}
+
+    <p>검색 결과가 없습니다.</p>
+
+{% endif %}
+
+</body>
+</html>
