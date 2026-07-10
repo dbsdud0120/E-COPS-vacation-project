@@ -12,5 +12,5 @@ RUN pip install --no-cache-dir \
     WeasyPrint \
     Markdown
 
-# 보고서 생성 실행(수정 필요)
+# 보고서 생성 실행
 CMD ["python", "report_generator.py"]
