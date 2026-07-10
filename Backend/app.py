@@ -150,7 +150,6 @@ def login():
 
 
 
-# 게시글
 @app.route("/posts", methods=["GET","POST"])
 def posts():
 
@@ -163,15 +162,23 @@ def posts():
     if request.method == "POST":
 
 
-        title = request.form.get("title")
-        content = request.form.get("content")
-        writer = request.form.get("writer")
+        title = request.form.get("title", "").strip()
+        content = request.form.get("content", "").strip()
+        writer = request.form.get("writer", "").strip()
 
 
         # 입력값 검증
         if not title or not content or not writer:
 
+            conn.close()
             return "모든 값을 입력하세요."
+
+
+        # 제목 길이 제한
+        if len(title) > 100:
+
+            conn.close()
+            return "제목은 100자 이하만 가능합니다."
 
 
         cursor.execute(
@@ -190,7 +197,7 @@ def posts():
 
 
 
-    keyword = request.args.get("keyword","")
+    keyword = request.args.get("keyword","").strip()
 
 
 
@@ -353,6 +360,96 @@ def api_post(post_id):
 
     })
 
+# 게시글 수정
+@app.route("/posts/edit/<int:post_id>", methods=["GET", "POST"])
+def edit_post(post_id):
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+
+        title = request.form.get("title", "").strip()
+        content = request.form.get("content", "").strip()
+
+        # 제목 검증
+        if not title:
+            conn.close()
+            return "제목을 입력하세요."
+
+        if len(title) > 100:
+            conn.close()
+            return "제목은 100자 이하만 가능합니다."
+
+        # 내용 검증
+        if not content:
+            conn.close()
+            return "내용을 입력하세요."
+
+        cursor.execute(
+            """
+            UPDATE posts
+            SET title=%s,
+                content=%s
+            WHERE id=%s
+            """,
+            (title, content, post_id)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return """
+        <script>
+        alert("수정 완료");
+        location.href="/posts";
+        </script>
+        """
+
+    cursor.execute(
+        """
+        SELECT * FROM posts
+        WHERE id=%s
+        """,
+        (post_id,)
+    )
+
+    post = cursor.fetchone()
+
+    conn.close()
+
+    if post is None:
+        return "게시글이 존재하지 않습니다."
+
+    return render_template(
+        "edit_post.html",
+        post=post
+    )
+
+# 게시글 삭제
+@app.route("/posts/delete/<int:post_id>")
+def delete_post(post_id):
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM posts
+        WHERE id=%s
+        """,
+        (post_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return """
+    <script>
+    alert("삭제 완료");
+    location.href="/posts";
+    </script>
+    """
 
 
 
