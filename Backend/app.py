@@ -13,7 +13,7 @@ app.secret_key = "evulnscanner-secret-key"
 def get_db():
 
     conn = pymysql.connect(
-        host="localhost",
+        host="db",
         user="root",
         password="1234",
         database="evulnscanner",
@@ -447,6 +447,5 @@ def comment():
 
 
 
-if __name__=="__main__":
-
-    app.run(debug=True)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

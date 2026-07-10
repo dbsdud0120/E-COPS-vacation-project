@@ -1,7 +1,7 @@
 import pymysql
 
 conn = pymysql.connect(
-    host="localhost",
+    host="db",
     user="user",
     password="1234",
     database="evulnscanner",
@@ -31,4 +31,4 @@ conn.commit()
 cursor.close()
 conn.close()
 
-print("데이터베이스 생성 완료!")    
+print("데이터베이스 생성 완료!")
