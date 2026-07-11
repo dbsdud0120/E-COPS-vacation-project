@@ -248,6 +248,33 @@ def posts():
 
     )
 
+# ==========================================
+# 의도적 취약점 예제: Stored XSS
+# 게시글 내용을 escaping 없이 출력
+# ==========================================
+
+@app.route("/vuln/posts")
+def vuln_posts():
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT * FROM posts
+        ORDER BY id DESC
+        """
+    )
+
+    posts = cursor.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "vuln_posts.html",
+        posts=posts
+    )
+
 
 
 
@@ -451,7 +478,90 @@ def delete_post(post_id):
     </script>
     """
 
+# ==========================================
+# 의도적 취약점 예제: IDOR (게시글 수정)
+# 권한 확인 없이 게시글 수정 가능
+# ==========================================
 
+@app.route("/vuln/posts/edit/<int:post_id>", methods=["GET", "POST"])
+def vuln_edit_post(post_id):
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+
+        title = request.form.get("title", "").strip()
+        content = request.form.get("content", "").strip()
+
+        cursor.execute(
+            """
+            UPDATE posts
+            SET title=%s, content=%s
+            WHERE id=%s
+            """,
+            (title, content, post_id)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return """
+        <script>
+        alert("취약 수정 완료");
+        location.href="/posts";
+        </script>
+        """
+
+    cursor.execute(
+        """
+        SELECT * FROM posts
+        WHERE id=%s
+        """,
+        (post_id,)
+    )
+
+    post = cursor.fetchone()
+
+    conn.close()
+
+    if post is None:
+        return "게시글이 존재하지 않습니다."
+
+    return render_template(
+        "edit_post.html",
+        post=post
+    )
+
+
+# ==========================================
+# 의도적 취약점 예제: IDOR (게시글 삭제)
+# 권한 확인 없이 게시글 삭제 가능
+# ==========================================
+
+@app.route("/vuln/posts/delete/<int:post_id>")
+def vuln_delete_post(post_id):
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM posts
+        WHERE id=%s
+        """,
+        (post_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return """
+    <script>
+    alert("취약 삭제 완료");
+    location.href="/posts";
+    </script>
+    """
 
 
 
