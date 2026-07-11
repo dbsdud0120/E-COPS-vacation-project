@@ -4,7 +4,7 @@ from werkzeug.utils import secure_filename
 
 upload_bp = Blueprint("upload", __name__)
 
-UPLOAD_FOLDER = "uploads"
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
 
 ALLOWED_EXTENSIONS = {
     "txt",
@@ -50,9 +50,11 @@ def upload():
     return render_template("upload.html")
 
 
-# ==========================
-# 취약 파일 업로드
-# ==========================
+# ==========================================
+# 의도적 취약점 예제: File Upload
+# 파일명 및 확장자 검증 없이 업로드
+# 실제 서비스에서는 사용하면 안 됨
+# ==========================================
 
 @upload_bp.route("/vuln/upload", methods=["GET","POST"])
 def vuln_upload():

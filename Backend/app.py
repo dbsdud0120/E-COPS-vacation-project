@@ -654,14 +654,7 @@ def comment():
 
     """
 
-
-
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
-
-    # ==========================================
+# ==========================================
 # 의도적 취약점 예제: Directory Traversal
 # 사용자 입력을 파일 경로 검증 없이 사용
 # 실제 서비스에서는 사용하면 안 됨
@@ -682,3 +675,11 @@ def vuln_download():
 
     except Exception as e:
         return str(e)
+
+
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
+    
