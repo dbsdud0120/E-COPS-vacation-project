@@ -22,6 +22,12 @@ IDOR(Insecure Direct Object Reference) / 권한 검증 누락 탐지.
 ⚙️ payloads/idor.txt 형식 (한 줄에 하나, 최소 2줄 있어야 계정 비교가 활성화됨):
    testuser1:testpass1
    testuser2:testpass2
+
+⚠️ 안전장치: URL 경로에 delete/remove/drop 등 "삭제"로 보이는 단어가 포함되면
+   실제 요청을 보내지 않습니다. (예: /posts/delete/3, /vuln/posts/delete/3처럼
+   GET 요청 하나로 실제 삭제가 실행되는 엔드포인트가 있어, 스캔 중 데이터가
+   삭제되는 걸 막기 위함) 이 경우 "발견은 했으나 실행하지 않음"으로만 기록되며,
+   실제로 인증/권한 없이 삭제가 가능한지는 수동으로 확인해야 합니다.
 """
 from __future__ import annotations
 import re
@@ -38,6 +44,14 @@ OWNER_FIELD_CANDIDATES = ["user_id", "owner_id", "writer_id", "username"]
 
 # URL 경로에서 숫자 ID를 찾는 패턴 (예: /api/posts/3, /posts/12/edit)
 ID_PATTERN = re.compile(r"/(\d+)(?:/|$|\?)")
+
+# 이 단어가 경로에 포함되면 실제 요청을 보내지 않음 (GET만으로 상태를 바꾸는 엔드포인트 방지)
+DESTRUCTIVE_PATH_HINTS = ("delete", "remove", "drop")
+
+
+def _looks_destructive(url: str) -> bool:
+    path = urlparse(url).path.lower()
+    return any(hint in path for hint in DESTRUCTIVE_PATH_HINTS)
 
 
 def _parse_accounts(payloads: list[str]) -> list[tuple[str, str]]:
@@ -56,6 +70,22 @@ def run(session, page, payloads: list[str]) -> list[Finding]:
 
     if not ID_PATTERN.search(page.url):
         return findings  # URL에 숫자 ID가 없는 페이지는 검사 대상 아님
+
+    if _looks_destructive(page.url):
+        # 실제 삭제를 유발하지 않기 위해 요청을 보내지 않고 "발견"만 기록
+        findings.append(make_finding(
+            check_name=CHECK_NAME,
+            url=page.url,
+            parameter="id",
+            payload=None,
+            severity=Severity.HIGH,
+            evidence="URL 경로에 삭제(delete) 등 상태 변경 작업으로 보이는 단어가 포함되어, 실제 요청은 보내지 않았습니다.",
+            description=(
+                "이 엔드포인트가 인증/권한 검증 없이 GET 요청만으로 데이터를 삭제/변경할 수 있는지 "
+                "수동으로 확인이 필요합니다. 자동 스캔에서는 실제 데이터 손실을 막기 위해 요청을 생략했습니다."
+            ),
+        ))
+        return findings
 
     accounts = _parse_accounts(payloads)
 
