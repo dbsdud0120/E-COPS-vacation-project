@@ -11,7 +11,8 @@ app.register_blueprint(upload_bp)
 app.secret_key = "evulnscanner-secret-key"
 
 
-# MySQL 연결 함수 로컬환경 즉, 개발 할 때는 호스트를 localhost로 바꾸어 확인하며 진행.
+# MySQL 연결 함수 로컬환경 
+#  개발 할 때는 호스트를 localhost로 바꾸어 확인하며 진행.
 # 추후에 리팩토링 할 때, 환경변수 설정하여 바꾸지 않는 방법으로 변경하도록 하겠습니다. 
 def get_db():
 
@@ -659,3 +660,25 @@ def comment():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+    # ==========================================
+# 의도적 취약점 예제: Directory Traversal
+# 사용자 입력을 파일 경로 검증 없이 사용
+# 실제 서비스에서는 사용하면 안 됨
+# ==========================================
+
+@app.route("/vuln/download")
+def vuln_download():
+
+    filename = request.args.get("file")
+
+    if not filename:
+        return "파일명을 입력하세요."
+
+    try:
+
+        with open(filename, "r", encoding="utf-8") as f:
+            return f.read()
+
+    except Exception as e:
+        return str(e)
