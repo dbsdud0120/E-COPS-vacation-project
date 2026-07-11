@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>파일 업로드</title>
+</head>
+<body>
+
+<h1>파일 업로드</h1>
+
+<h2>정상 업로드</h2>
+
+<form method="POST" enctype="multipart/form-data">
+
+    <input type="file" name="file">
+
+    <br><br>
+
+    <input type="submit" value="업로드">
+
+</form>
+
+<hr>
+
+<h2>취약 업로드</h2>
+
+<form
+    method="POST"
+    action="/vuln/upload"
+    enctype="multipart/form-data"
+>
+
+    <input type="file" name="file">
+
+    <br><br>
+
+    <input type="submit" value="취약 업로드">
+
+</form>
+
+</body>
+</html>
