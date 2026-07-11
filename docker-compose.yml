@@ -6,7 +6,7 @@ services:
   backend:
     # backend 폴더의 Dockerfile을 이용하여 이미지 생성
     build:
-      context: ./backend
+      context: ./Backend
 
     # 컨테이너 이름
     container_name: vulnerable-backend
@@ -32,7 +32,7 @@ services:
   scanner:
     # scanner 폴더의 Dockerfile 사용
     build:
-      context: ./scanner
+      context: ./Scanner
 
     container_name: security-scanner
 
@@ -48,7 +48,7 @@ services:
   report:
     # report 폴더의 Dockerfile 사용
     build:
-      context: ./report
+      context: ./Report
 
     container_name: report-generator
 
@@ -104,3 +104,4 @@ volumes:
 networks:
   security-network:
     driver: bridge
+
