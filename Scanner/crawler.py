@@ -84,6 +84,35 @@ class Crawler:
                 links.append(normalized)
         return links
 
+    def fetch_page(self, url: str) -> tuple[PageInfo, list[str]]:
+        """
+        URL 하나를 실제로 요청해서 PageInfo로 변환.
+        crawl()의 내부 로직이자, swagger 등 "링크로는 못 찾는" 시드 URL을
+        동일한 방식으로 처리하기 위해 별도 메서드로 분리해둠.
+
+        반환값: (PageInfo, 페이지에서 발견한 같은 도메인 링크 목록)
+        요청 실패 시에도 None이 아니라 status_code=-1인 PageInfo를 반환한다
+        (링크 목록은 빈 리스트).
+        """
+        try:
+            resp = self.session.get(url, timeout=self.timeout)
+        except requests.RequestException as e:
+            print(f"[crawler] 요청 실패: {url} ({e})")
+            return PageInfo(url=url, status_code=-1), []
+
+        soup = BeautifulSoup(resp.text, "lxml")
+        forms = self._extract_forms(soup, url)
+        query_params = [p for p in urlparse(url).query.split("&") if p]
+
+        page = PageInfo(
+            url=url,
+            status_code=resp.status_code,
+            forms=forms,
+            query_params=query_params,
+        )
+        links = self._extract_links(soup, url)
+        return page, links
+
     def crawl(self) -> list[PageInfo]:
         """BFS 방식으로 크롤링하여 PageInfo 목록을 반환"""
         pages: list[PageInfo] = []
@@ -95,32 +124,32 @@ class Crawler:
                 continue
             self.visited.add(url)
 
-            try:
-                resp = self.session.get(url, timeout=self.timeout)
-            except requests.RequestException as e:
-                # 네트워크 오류는 결과에 상태코드 -1로 기록하고 계속 진행
-                pages.append(PageInfo(url=url, status_code=-1))
-                print(f"[crawler] 요청 실패: {url} ({e})")
+            page, links = self.fetch_page(url)
+            pages.append(page)
+
+            if page.status_code == -1:
                 continue
 
-            soup = BeautifulSoup(resp.text, "lxml")
-            forms = self._extract_forms(soup, url)
-            query_params = [p for p in urlparse(url).query.split("&") if p]
-
-            pages.append(PageInfo(
-                url=url,
-                status_code=resp.status_code,
-                forms=forms,
-                query_params=query_params,
-            ))
-
-            for link in self._extract_links(soup, url):
+            for link in links:
                 if link not in self.visited:
                     queue.append((link, depth + 1))
 
             time.sleep(self.delay)
 
         return pages
+
+    def visit_extra(self, url: str) -> PageInfo | None:
+        """
+        크롤링(BFS)과 별개로, 이미 알고 있는 URL 하나를 결과 목록에 추가하고 싶을 때 사용.
+        (예: swagger 문서에서 찾은, 어디서도 링크되지 않은 /vuln/* 라우트)
+        이미 방문한 URL이면 중복 요청하지 않고 None을 반환.
+        """
+        if url in self.visited:
+            return None
+        self.visited.add(url)
+        page, _links = self.fetch_page(url)
+        time.sleep(self.delay)
+        return page
 
 
 if __name__ == "__main__":

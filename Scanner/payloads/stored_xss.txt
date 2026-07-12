@@ -1,0 +1,4 @@
+# 이 검사는 실행마다 고유 marker를 붙여 payload를 동적으로 생성합니다
+# (checks/stored_xss.py의 _build_payload 참고).
+# 이 파일은 참고/문서용이며 실제로 로드되어 쓰이지는 않습니다.
+<script>alert('STORED_XSS_TEST')</script>

@@ -12,6 +12,7 @@ scanner.py
 사용법:
   python scanner.py https://target.example.com
   python scanner.py https://target.example.com --depth 2 --checks sql_injection,xss
+  python scanner.py http://localhost:5000 --swagger ../Backend/swagger.yaml
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ import requests
 
 from crawler import Crawler
 from checks import CHECK_REGISTRY
+from swagger_seed import load_seed_urls
 
 PAYLOADS_DIR = os.path.join(os.path.dirname(__file__), "payloads")
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
@@ -49,14 +51,33 @@ def parse_args():
         default=",".join(CHECK_REGISTRY.keys()),
         help="실행할 검사 목록, 콤마로 구분 (기본값: 전체). 예: sql_injection,xss",
     )
+    parser.add_argument(
+        "--swagger",
+        default=None,
+        help=(
+            "Swagger(OpenAPI) 문서 경로 또는 URL. index.html/posts.html 등에 링크가 없어 "
+            "크롤러가 못 찾는 /vuln/* 라우트를 이 문서에서 읽어와 시드로 추가함. "
+            "예: ../Backend/swagger.yaml 또는 http://localhost:5000/swagger.json"
+        ),
+    )
     return parser.parse_args()
 
 
-def run_scan(target_url: str, depth: int, check_names: list[str]) -> dict:
+def run_scan(target_url: str, depth: int, check_names: list[str], swagger_source: str | None = None) -> dict:
     print(f"[scanner] 크롤링 시작: {target_url} (depth={depth})")
     crawler = Crawler(target_url, max_depth=depth)
     pages = crawler.crawl()
     print(f"[scanner] 크롤링 완료: 페이지 {len(pages)}개 수집")
+
+    if swagger_source:
+        seed_urls = load_seed_urls(swagger_source, target_url)
+        added = 0
+        for url in seed_urls:
+            page = crawler.visit_extra(url)
+            if page is not None:
+                pages.append(page)
+                added += 1
+        print(f"[scanner] swagger 기반 추가 시드: {len(seed_urls)}개 중 신규 {added}개 추가 (크롤링으로는 못 찾는 라우트 포함)")
 
     session = requests.Session()
 
@@ -108,7 +129,7 @@ def main():
     args = parse_args()
     check_names = [c.strip() for c in args.checks.split(",") if c.strip()]
 
-    result = run_scan(args.url, args.depth, check_names)
+    result = run_scan(args.url, args.depth, check_names, swagger_source=args.swagger)
     filepath = save_result(result)
 
     print(f"[scanner] 스캔 완료. 발견된 이슈: {result['findings_count']}건")
