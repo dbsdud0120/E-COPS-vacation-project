@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify, session
+import os
 import pymysql
 from werkzeug.security import generate_password_hash, check_password_hash
 from upload import upload_bp
@@ -11,19 +12,15 @@ app.register_blueprint(upload_bp)
 app.secret_key = "evulnscanner-secret-key"
 
 
-# MySQL 연결 함수 로컬환경 
-#  개발 할 때는 호스트를 localhost로 바꾸어 확인하며 진행.
-# 추후에 리팩토링 할 때, 환경변수 설정하여 바꾸지 않는 방법으로 변경하도록 하겠습니다. 
+# MySQL 연결 함수 
 def get_db():
-
     conn = pymysql.connect(
-        host="db",
-        user="root",
-        password="1234",
-        database="evulnscanner",
+        host=os.getenv("MYSQL_HOST"),
+        user=os.getenv("MYSQL_USER"),
+        password=os.getenv("MYSQL_PASSWORD"),
+        database=os.getenv("MYSQL_DATABASE"),
         charset="utf8mb4"
     )
-
     return conn
 
 
