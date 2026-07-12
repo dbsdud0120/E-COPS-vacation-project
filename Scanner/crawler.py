@@ -84,13 +84,15 @@ class Crawler:
                 links.append(normalized)
         return links
 
-    def fetch_page(self, url: str) -> tuple[PageInfo | None, list[str]]:
+    def fetch_page(self, url: str) -> tuple[PageInfo, list[str]]:
         """
         URL 하나를 실제로 요청해서 PageInfo로 변환.
         crawl()의 내부 로직이자, swagger 등 "링크로는 못 찾는" 시드 URL을
         동일한 방식으로 처리하기 위해 별도 메서드로 분리해둠.
 
-        반환값: (PageInfo 또는 실패 시 None, 페이지에서 발견한 같은 도메인 링크 목록)
+        반환값: (PageInfo, 페이지에서 발견한 같은 도메인 링크 목록)
+        요청 실패 시에도 None이 아니라 status_code=-1인 PageInfo를 반환한다
+        (링크 목록은 빈 리스트).
         """
         try:
             resp = self.session.get(url, timeout=self.timeout)
