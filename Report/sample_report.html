@@ -1,0 +1,198 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>보안 취약점 스캔 리포트</title>
+<style>
+  body {
+    font-family: "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
+    background: #0F1117;
+    color: #E6E6EA;
+    margin: 0;
+    padding: 32px 40px;
+  }
+  h1 { font-size: 24px; margin-bottom: 4px; }
+  .meta { color: #9AA0AC; font-size: 13px; margin-bottom: 20px; }
+  .summary { display: flex; gap: 10px; margin-bottom: 24px; }
+  .summary-box {
+    flex: 1; background: #171A23; border: 1px solid #262A36;
+    border-radius: 8px; padding: 12px; text-align: center;
+  }
+  .summary-count { font-size: 22px; font-weight: 700; }
+  .summary-label { font-size: 11px; color: #9AA0AC; margin-top: 4px; }
+  .card {
+    background: #171A23; border: 1px solid #262A36; border-left: 4px solid;
+    border-radius: 8px; padding: 14px 18px; margin-bottom: 12px;
+  }
+  .card-header { display: flex; justify-content: space-between; align-items: center; }
+  .vuln-title { font-size: 15px; font-weight: 700; }
+  .badge {
+    font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; color: #14151b;
+  }
+  .url { font-family: monospace; font-size: 12px; color: #9AA0AC; margin: 4px 0 10px; }
+  .field-label { font-size: 10.5px; text-transform: uppercase; color: #9AA0AC; margin-top: 8px; }
+  .field-value {
+    font-size: 12.5px; background: #0F1117; border: 1px solid #262A36;
+    border-radius: 6px; padding: 6px 8px; margin-top: 3px;
+  }
+  .mitigation { color: #5CD3A3; }
+</style>
+</head>
+<body>
+  <h1>보안 취약점 스캔 리포트</h1>
+  <div class="meta">대상: http://test-server.local | 스캔일: 2026-07-02 | 생성일시: 2026-07-11 12:49 | 총 9건</div>
+
+  <div class="summary">
+    
+    <div class="summary-box">
+      <div class="summary-count" style="color: #FF4D4F">4</div>
+      <div class="summary-label">Critical</div>
+    </div>
+    
+    <div class="summary-box">
+      <div class="summary-count" style="color: #FF9E42">3</div>
+      <div class="summary-label">High</div>
+    </div>
+    
+    <div class="summary-box">
+      <div class="summary-count" style="color: #FFD166">1</div>
+      <div class="summary-label">Medium</div>
+    </div>
+    
+    <div class="summary-box">
+      <div class="summary-count" style="color: #5CD3A3">1</div>
+      <div class="summary-label">Low</div>
+    </div>
+    
+  </div>
+
+  
+  <div class="card" style="border-left-color: #FF4D4F;">
+    <div class="card-header">
+      <div class="vuln-title">SQL Injection</div>
+      <div class="badge" style="background: #FF4D4F;">Critical</div>
+    </div>
+    <div class="url">/login</div>
+    <div class="field-label">설명</div>
+    <div class="field-value">로그인 폼이 사용자 입력값을 검증 없이 SQL 쿼리에 직접 삽입하여, 공격자가 임의의 쿼리를 실행할 수 있음</div>
+    <div class="field-label">증거 (Evidence)</div>
+    <div class="field-value">payload: ' or 1=1 -- 입력 시 인증 우회되어 로그인 성공</div>
+    <div class="field-label">대응 방안</div>
+    <div class="field-value mitigation">Prepared Statement(파라미터바인딩) 사용, ORM 사용 권장</div>
+  </div>
+  
+  <div class="card" style="border-left-color: #FF4D4F;">
+    <div class="card-header">
+      <div class="vuln-title">File Upload</div>
+      <div class="badge" style="background: #FF4D4F;">Critical</div>
+    </div>
+    <div class="url">/upload</div>
+    <div class="field-label">설명</div>
+    <div class="field-value">파일 업로드 기능이 확장자 검증을 하지 않아, 실행 가능한 스크립트 파일이 서버에 업로드될 수 있음</div>
+    <div class="field-label">증거 (Evidence)</div>
+    <div class="field-value">shell.php 파일을 업로드 후 직접 접근하여 임의 명령 실행 확인</div>
+    <div class="field-label">대응 방안</div>
+    <div class="field-value mitigation">확장자 화이트리스트 검증, 업로드 파일 실행 권한 제거, 별도 스토리지 분리</div>
+  </div>
+  
+  <div class="card" style="border-left-color: #FF4D4F;">
+    <div class="card-header">
+      <div class="vuln-title">Broken Authentication</div>
+      <div class="badge" style="background: #FF4D4F;">Critical</div>
+    </div>
+    <div class="url">/login</div>
+    <div class="field-label">설명</div>
+    <div class="field-value">인증 로직에 무차별 대입 공격 방지 장치가 없고, 세션 관리가 취약하여 계정 탈취 위험이 있음</div>
+    <div class="field-label">증거 (Evidence)</div>
+    <div class="field-value">로그인 실패 횟수 제한 없음, 세션 토큰이 추측 가능한 패턴으로 발급됨</div>
+    <div class="field-label">대응 방안</div>
+    <div class="field-value mitigation">로그인 시도 횟수 제한, 세션 토큰 무작위성 강화, MFA 도입</div>
+  </div>
+  
+  <div class="card" style="border-left-color: #FF4D4F;">
+    <div class="card-header">
+      <div class="vuln-title">Missing JWT Verification</div>
+      <div class="badge" style="background: #FF4D4F;">Critical</div>
+    </div>
+    <div class="url">/api/posts</div>
+    <div class="field-label">설명</div>
+    <div class="field-value">API 서버가 JWT의 서명을 검증하지 않아, 토큰을 임의로 조작해 인증을 우회할 수 있음</div>
+    <div class="field-label">증거 (Evidence)</div>
+    <div class="field-value">서명이 변조된 JWT 토큰으로 요청해도 정상적으로 인증 통과됨</div>
+    <div class="field-label">대응 방안</div>
+    <div class="field-value mitigation">서명 검증 필수화, 토큰 만료시간 설정, Secret Key 안전하게 관리</div>
+  </div>
+  
+  <div class="card" style="border-left-color: #FF9E42;">
+    <div class="card-header">
+      <div class="vuln-title">Stored XSS</div>
+      <div class="badge" style="background: #FF9E42;">High</div>
+    </div>
+    <div class="url">/board/write</div>
+    <div class="field-label">설명</div>
+    <div class="field-value">게시판 글 작성 시 입력값 검증이 없어, 악성 스크립트가 DB에 저장되고 모든 열람자에게 실행됨</div>
+    <div class="field-label">증거 (Evidence)</div>
+    <div class="field-value">게시글 본문에 <script>alert(document.cookie)</script> 작성 후 저장, 게시글 조회 시 다른 사용자에게도 실행됨</div>
+    <div class="field-label">대응 방안</div>
+    <div class="field-value mitigation">입력값 검증 + 출력 인코딩 + CSP(Content Security Policy) 적용</div>
+  </div>
+  
+  <div class="card" style="border-left-color: #FF9E42;">
+    <div class="card-header">
+      <div class="vuln-title">Directory Traversal</div>
+      <div class="badge" style="background: #FF9E42;">High</div>
+    </div>
+    <div class="url">/download?file=../../../etc/passwd</div>
+    <div class="field-label">설명</div>
+    <div class="field-value">파일 다운로드 기능이 경로 검증 없이 사용자 입력을 그대로 사용하여, 서버 내 임의 파일에 접근 가능</div>
+    <div class="field-label">증거 (Evidence)</div>
+    <div class="field-value">../../ 경로 조작으로 시스템 파일(/etc/passwd) 내용 노출 확인</div>
+    <div class="field-label">대응 방안</div>
+    <div class="field-value mitigation">경로 입력값 검증, 파일 접근을 화이트리스트 기반으로 제한</div>
+  </div>
+  
+  <div class="card" style="border-left-color: #FF9E42;">
+    <div class="card-header">
+      <div class="vuln-title">IDOR</div>
+      <div class="badge" style="background: #FF9E42;">High</div>
+    </div>
+    <div class="url">/api/users/{id}</div>
+    <div class="field-label">설명</div>
+    <div class="field-value">API가 요청자의 권한을 검증하지 않고 객체 ID만으로 데이터를 반환하여, 타 사용자 정보에 무단 접근 가능</div>
+    <div class="field-label">증거 (Evidence)</div>
+    <div class="field-value">본인 계정(id=5)이 아닌 다른 사용자(id=6)의 정보를 URL 변경만으로 조회 성공</div>
+    <div class="field-label">대응 방안</div>
+    <div class="field-value mitigation">요청자 권한과 객체 소유자 일치 여부 서버단에서 검증</div>
+  </div>
+  
+  <div class="card" style="border-left-color: #FFD166;">
+    <div class="card-header">
+      <div class="vuln-title">Reflected XSS</div>
+      <div class="badge" style="background: #FFD166;">Medium</div>
+    </div>
+    <div class="url">/search</div>
+    <div class="field-label">설명</div>
+    <div class="field-value">검색 기능이 사용자 입력을 이스케이프 처리 없이 HTML에 그대로 반영하여, 악성 스크립트가 실행될 수 있음</div>
+    <div class="field-label">증거 (Evidence)</div>
+    <div class="field-value"><script>alert(1)</script> 입력 시 검색 결과 페이지에 스크립트가 그대로 출력됨</div>
+    <div class="field-label">대응 방안</div>
+    <div class="field-value mitigation">출력 시 HTML Output Encoding 적용</div>
+  </div>
+  
+  <div class="card" style="border-left-color: #5CD3A3;">
+    <div class="card-header">
+      <div class="vuln-title">Missing Rate Limiting</div>
+      <div class="badge" style="background: #5CD3A3;">Low</div>
+    </div>
+    <div class="url">/api/login</div>
+    <div class="field-label">설명</div>
+    <div class="field-value">로그인 API에 요청 횟수 제한이 없어, 무차별 대입 공격이나 서비스 거부 공격에 취약함</div>
+    <div class="field-label">증거 (Evidence)</div>
+    <div class="field-value">1초당 100회 이상 로그인 요청을 보내도 차단되지 않음</div>
+    <div class="field-label">대응 방안</div>
+    <div class="field-value mitigation">API Gateway 또는 미들웨어 레벨에서 요청 횟수 제한 적용</div>
+  </div>
+  
+</body>
+</html>
