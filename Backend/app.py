@@ -12,17 +12,15 @@ app.register_blueprint(upload_bp)
 app.secret_key = "evulnscanner-secret-key"
 
 
-# MySQL 연결 함수 
 def get_db():
     conn = pymysql.connect(
-        host=os.getenv("MYSQL_HOST"),
-        user=os.getenv("MYSQL_USER"),
-        password=os.getenv("MYSQL_PASSWORD"),
-        database=os.getenv("MYSQL_DATABASE"),
+        host=os.getenv("MYSQL_HOST", "localhost"),
+        user=os.getenv("MYSQL_USER", "user"),
+        password=os.getenv("MYSQL_PASSWORD", "1234"),
+        database=os.getenv("MYSQL_DATABASE", "evulnscanner"),
         charset="utf8mb4"
     )
     return conn
-
 
 
 @app.route("/")
@@ -109,7 +107,7 @@ def users():
 
 
 
-#
+#로그인
 @app.route("/login", methods=["GET", "POST"])
 def login():
 
@@ -148,6 +146,19 @@ def login():
 
     return render_template("login.html")
 
+# 로그아웃
+@app.route("/logout")
+def logout():
+
+    session.clear()
+
+    return """
+    <script>
+    alert("로그아웃되었습니다.");
+    location.href="/";
+    </script>
+    """
+
 
 
 
@@ -163,9 +174,15 @@ def posts():
     if request.method == "POST":
 
 
+        if "username" not in session:
+            conn.close()
+            return "로그인이 필요합니다."
+
         title = request.form.get("title", "").strip()
         content = request.form.get("content", "").strip()
-        writer = request.form.get("writer", "").strip()
+
+        # 작성자는 로그인한 사용자로 고정
+        writer = session["username"]
 
 
         # 입력값 검증
@@ -395,6 +412,31 @@ def edit_post(post_id):
     conn = get_db()
     cursor = conn.cursor()
 
+    # 게시글 조회
+    cursor.execute(
+        """
+        SELECT * FROM posts
+        WHERE id=%s
+        """,
+        (post_id,)
+    )
+
+    post = cursor.fetchone()
+
+    if post is None:
+        conn.close()
+        return "게시글이 존재하지 않습니다."
+
+    # 로그인 확인
+    if "username" not in session:
+        conn.close()
+        return "로그인이 필요합니다."
+
+    # 작성자 확인
+    if post[3] != session["username"]:
+        conn.close()
+        return "작성자만 수정할 수 있습니다."
+
     if request.method == "POST":
 
         title = request.form.get("title", "").strip()
@@ -434,20 +476,7 @@ def edit_post(post_id):
         </script>
         """
 
-    cursor.execute(
-        """
-        SELECT * FROM posts
-        WHERE id=%s
-        """,
-        (post_id,)
-    )
-
-    post = cursor.fetchone()
-
     conn.close()
-
-    if post is None:
-        return "게시글이 존재하지 않습니다."
 
     return render_template(
         "edit_post.html",
@@ -461,6 +490,32 @@ def delete_post(post_id):
     conn = get_db()
     cursor = conn.cursor()
 
+    # 게시글 조회
+    cursor.execute(
+        """
+        SELECT * FROM posts
+        WHERE id=%s
+        """,
+        (post_id,)
+    )
+
+    post = cursor.fetchone()
+
+    if post is None:
+        conn.close()
+        return "게시글이 존재하지 않습니다."
+
+    # 로그인 확인
+    if "username" not in session:
+        conn.close()
+        return "로그인이 필요합니다."
+
+    # 작성자 확인
+    if post[3] != session["username"]:
+        conn.close()
+        return "작성자만 삭제할 수 있습니다."
+
+    # 삭제
     cursor.execute(
         """
         DELETE FROM posts
@@ -478,6 +533,8 @@ def delete_post(post_id):
     location.href="/posts";
     </script>
     """
+
+
 
 # ==========================================
 # 의도적 취약점 예제: IDOR (게시글 수정)
