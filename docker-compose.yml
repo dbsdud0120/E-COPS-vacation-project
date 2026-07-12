@@ -17,7 +17,11 @@ services:
 
     # 환경 변수
     environment:
-      - FLASK_ENV=development
+      FLASK_ENV: development
+      MYSQL_HOST: db
+      MYSQL_DATABASE: security_db
+      MYSQL_USER: security
+      MYSQL_PASSWORD: security123
 
     # DB가 먼저 실행된 후 backend 실행
     depends_on:
