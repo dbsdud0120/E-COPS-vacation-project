@@ -7,10 +7,7 @@ WORKDIR /app
 COPY . .
 
 # Python 라이브러리 설치
-RUN pip install --no-cache-dir \
-    Flask \
-    PyMySQL \
-    Werkzeug
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Flask 실행 포트
 EXPOSE 5000
