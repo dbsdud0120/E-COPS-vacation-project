@@ -18,9 +18,7 @@ WORKDIR /app
 COPY . .
 
 # 필요한 Python 라이브러리 설치
-RUN pip install --no-cache-dir \
-    Jinja2 \
-    WeasyPrint
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 보고서 생성 실행
 CMD ["python", "report_generator.py", "sample_result.json", "sample_report"]
