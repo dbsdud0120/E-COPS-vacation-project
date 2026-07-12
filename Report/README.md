@@ -3,14 +3,16 @@
 Scanner가 생성한 JSON 스캔 결과를 HTML/PDF 취약점 리포트로 변환하는 기능입니다.
 
 ## 폴더 구조
+```
 Report/
 ├── report_generator.py     # 리포트 생성 메인 스크립트
-├── mitigation_guide.md      # 취약점 유형별 대응 방안 표
-├── severity_guide.md        # 심각도 등급(Critical/High/Medium/Low) 기준
-├── sample_result.json       # 테스트용 샘플 스캔 결과
-├── sample_report.html       # 샘플 실행 결과 (HTML)
-├── sample_report.pdf        # 샘플 실행 결과 (PDF)
+├── mitigation_guide.md     # 취약점 유형별 대응 방안 표
+├── severity_guide.md       # 심각도 등급(Critical/High/Medium/Low) 기준
+├── sample_result.json      # 테스트용 샘플 스캔 결과
+├── sample_report.html      # 샘플 실행 결과 (HTML)
+├── sample_report.pdf       # 샘플 실행 결과 (PDF)
 └── Dockerfile
+```
 
 ## 실행 방법
 
