@@ -1,10 +1,13 @@
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, send_from_directory
 import os
 from werkzeug.utils import secure_filename
 
 upload_bp = Blueprint("upload", __name__)
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
+BASE_UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
+
+SAFE_UPLOAD_FOLDER = os.path.join(BASE_UPLOAD_FOLDER, "safe")
+VULN_UPLOAD_FOLDER = os.path.join(BASE_UPLOAD_FOLDER, "vuln")
 
 ALLOWED_EXTENSIONS = {
     "txt",
@@ -41,9 +44,9 @@ def upload():
 
         filename = secure_filename(file.filename)
 
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        os.makedirs(SAFE_UPLOAD_FOLDER, exist_ok=True)
 
-        file.save(os.path.join(UPLOAD_FOLDER, filename))
+        file.save(os.path.join(SAFE_UPLOAD_FOLDER, filename))
 
         return "업로드 성공!"
 
@@ -66,10 +69,25 @@ def vuln_upload():
         if file is None or file.filename == "":
             return "파일을 선택하세요."
 
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        os.makedirs(VULN_UPLOAD_FOLDER, exist_ok=True)
 
-        file.save(os.path.join(UPLOAD_FOLDER, file.filename))
+        file.save(os.path.join(VULN_UPLOAD_FOLDER, file.filename))
 
         return "취약 업로드 성공!"
 
     return render_template("upload.html")
+
+
+# ==========================
+# 업로드 파일 조회
+# ==========================
+
+
+@upload_bp.route("/uploads/safe/<path:filename>")
+def uploaded_safe_file(filename):
+    return send_from_directory(SAFE_UPLOAD_FOLDER, filename)
+
+
+@upload_bp.route("/uploads/vuln/<path:filename>")
+def uploaded_vuln_file(filename):
+    return send_from_directory(VULN_UPLOAD_FOLDER, filename)
