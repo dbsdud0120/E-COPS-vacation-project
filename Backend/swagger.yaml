@@ -391,6 +391,29 @@ paths:
 
   /vuln/posts/edit/{post_id}:
 
+    get:
+
+      summary: IDOR 취약 수정 페이지
+
+      description: 권한 검사 없이 게시글 수정 페이지를 조회
+
+      parameters:
+
+        - name: post_id
+
+          in: path
+
+          required: true
+
+          schema:
+
+            type: integer
+
+      responses:
+
+        '200':
+          description: 수정 페이지
+
     post:
 
       summary: IDOR 취약 수정
@@ -411,7 +434,6 @@ paths:
 
         '200':
           description: 수정 완료
-
 
 
   /vuln/posts/delete/{post_id}:
@@ -496,4 +518,3 @@ paths:
 
         '200':
           description: 파일 내용 반환
-          
