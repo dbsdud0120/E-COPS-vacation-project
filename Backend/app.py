@@ -1,27 +1,26 @@
 from flask import Flask, render_template, request, jsonify, session
+import os
 import pymysql
 from werkzeug.security import generate_password_hash, check_password_hash
+from upload import upload_bp
 
 
 app = Flask(__name__)
+app.register_blueprint(upload_bp)
 
 # 세션 암호화 키
 app.secret_key = "evulnscanner-secret-key"
 
 
-# MySQL 연결 함수
 def get_db():
-
     conn = pymysql.connect(
-        host="db",
-        user="root",
-        password="1234",
-        database="evulnscanner",
+        host=os.getenv("MYSQL_HOST", "localhost"),
+        user=os.getenv("MYSQL_USER", "user"),
+        password=os.getenv("MYSQL_PASSWORD", "1234"),
+        database=os.getenv("MYSQL_DATABASE", "evulnscanner"),
         charset="utf8mb4"
     )
-
     return conn
-
 
 
 @app.route("/")
@@ -108,7 +107,7 @@ def users():
 
 
 
-#
+#로그인
 @app.route("/login", methods=["GET", "POST"])
 def login():
 
@@ -147,10 +146,22 @@ def login():
 
     return render_template("login.html")
 
+# 로그아웃
+@app.route("/logout")
+def logout():
+
+    session.clear()
+
+    return """
+    <script>
+    alert("로그아웃되었습니다.");
+    location.href="/";
+    </script>
+    """
 
 
 
-# 게시글
+
 @app.route("/posts", methods=["GET","POST"])
 def posts():
 
@@ -163,15 +174,29 @@ def posts():
     if request.method == "POST":
 
 
-        title = request.form.get("title")
-        content = request.form.get("content")
-        writer = request.form.get("writer")
+        if "username" not in session:
+            conn.close()
+            return "로그인이 필요합니다."
+
+        title = request.form.get("title", "").strip()
+        content = request.form.get("content", "").strip()
+
+        # 작성자는 로그인한 사용자로 고정
+        writer = session["username"]
 
 
         # 입력값 검증
         if not title or not content or not writer:
 
+            conn.close()
             return "모든 값을 입력하세요."
+
+
+        # 제목 길이 제한
+        if len(title) > 100:
+
+            conn.close()
+            return "제목은 100자 이하만 가능합니다."
 
 
         cursor.execute(
@@ -190,7 +215,7 @@ def posts():
 
 
 
-    keyword = request.args.get("keyword","")
+    keyword = request.args.get("keyword","").strip()
 
 
 
@@ -239,6 +264,33 @@ def posts():
 
         keyword=keyword
 
+    )
+
+# ==========================================
+# 의도적 취약점 예제: Stored XSS
+# 게시글 내용을 escaping 없이 출력
+# ==========================================
+
+@app.route("/vuln/posts")
+def vuln_posts():
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT * FROM posts
+        ORDER BY id DESC
+        """
+    )
+
+    posts = cursor.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "vuln_posts.html",
+        posts=posts
     )
 
 
@@ -353,8 +405,221 @@ def api_post(post_id):
 
     })
 
+# 게시글 수정
+@app.route("/posts/edit/<int:post_id>", methods=["GET", "POST"])
+def edit_post(post_id):
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # 게시글 조회
+    cursor.execute(
+        """
+        SELECT * FROM posts
+        WHERE id=%s
+        """,
+        (post_id,)
+    )
+
+    post = cursor.fetchone()
+
+    if post is None:
+        conn.close()
+        return "게시글이 존재하지 않습니다."
+
+    # 로그인 확인
+    if "username" not in session:
+        conn.close()
+        return "로그인이 필요합니다."
+
+    # 작성자 확인
+    if post[3] != session["username"]:
+        conn.close()
+        return "작성자만 수정할 수 있습니다."
+
+    if request.method == "POST":
+
+        title = request.form.get("title", "").strip()
+        content = request.form.get("content", "").strip()
+
+        # 제목 검증
+        if not title:
+            conn.close()
+            return "제목을 입력하세요."
+
+        if len(title) > 100:
+            conn.close()
+            return "제목은 100자 이하만 가능합니다."
+
+        # 내용 검증
+        if not content:
+            conn.close()
+            return "내용을 입력하세요."
+
+        cursor.execute(
+            """
+            UPDATE posts
+            SET title=%s,
+                content=%s
+            WHERE id=%s
+            """,
+            (title, content, post_id)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return """
+        <script>
+        alert("수정 완료");
+        location.href="/posts";
+        </script>
+        """
+
+    conn.close()
+
+    return render_template(
+        "edit_post.html",
+        post=post
+    )
+
+# 게시글 삭제
+@app.route("/posts/delete/<int:post_id>")
+def delete_post(post_id):
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # 게시글 조회
+    cursor.execute(
+        """
+        SELECT * FROM posts
+        WHERE id=%s
+        """,
+        (post_id,)
+    )
+
+    post = cursor.fetchone()
+
+    if post is None:
+        conn.close()
+        return "게시글이 존재하지 않습니다."
+
+    # 로그인 확인
+    if "username" not in session:
+        conn.close()
+        return "로그인이 필요합니다."
+
+    # 작성자 확인
+    if post[3] != session["username"]:
+        conn.close()
+        return "작성자만 삭제할 수 있습니다."
+
+    # 삭제
+    cursor.execute(
+        """
+        DELETE FROM posts
+        WHERE id=%s
+        """,
+        (post_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return """
+    <script>
+    alert("삭제 완료");
+    location.href="/posts";
+    </script>
+    """
 
 
+
+# ==========================================
+# 의도적 취약점 예제: IDOR (게시글 수정)
+# 권한 확인 없이 게시글 수정 가능
+# ==========================================
+
+@app.route("/vuln/posts/edit/<int:post_id>", methods=["GET", "POST"])
+def vuln_edit_post(post_id):
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+
+        title = request.form.get("title", "").strip()
+        content = request.form.get("content", "").strip()
+
+        cursor.execute(
+            """
+            UPDATE posts
+            SET title=%s, content=%s
+            WHERE id=%s
+            """,
+            (title, content, post_id)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return """
+        <script>
+        alert("취약 수정 완료");
+        location.href="/posts";
+        </script>
+        """
+
+    cursor.execute(
+        """
+        SELECT * FROM posts
+        WHERE id=%s
+        """,
+        (post_id,)
+    )
+
+    post = cursor.fetchone()
+
+    conn.close()
+
+    if post is None:
+        return "게시글이 존재하지 않습니다."
+
+    return render_template(
+        "edit_post.html",
+        post=post
+    )
+
+
+# ==========================================
+# 의도적 취약점 예제: IDOR (게시글 삭제)
+# 권한 확인 없이 게시글 삭제 가능
+# ==========================================
+
+@app.route("/vuln/posts/delete/<int:post_id>")
+def vuln_delete_post(post_id):
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM posts
+        WHERE id=%s
+        """,
+        (post_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return """
+    <script>
+    alert("취약 삭제 완료");
+    location.href="/posts";
+    </script>
+    """
 
 
 
@@ -443,9 +708,32 @@ def comment():
 
     """
 
+# ==========================================
+# 의도적 취약점 예제: Directory Traversal
+# 사용자 입력을 파일 경로 검증 없이 사용
+# 실제 서비스에서는 사용하면 안 됨
+# ==========================================
+
+@app.route("/vuln/download")
+def vuln_download():
+
+    filename = request.args.get("file")
+
+    if not filename:
+        return "파일명을 입력하세요."
+
+    try:
+
+        with open(filename, "r", encoding="utf-8") as f:
+            return f.read()
+
+    except Exception as e:
+        return str(e)
 
 
 
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+    

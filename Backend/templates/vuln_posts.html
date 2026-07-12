@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Stored XSS 취약 게시판</title>
+</head>
+<body>
+
+<h1>Stored XSS 취약 게시판</h1>
+
+<p>※ 게시글 내용을 escaping 없이 출력하는 취약한 페이지입니다.</p>
+
+<hr>
+
+{% for post in posts %}
+
+    <h3>{{ post[1] }}</h3>
+
+    {{ post[2]|safe }}
+
+    <br><br>
+
+    <small>작성자 : {{ post[3] }}</small>
+
+    <hr>
+
+{% endfor %}
+
+</body>
+</html>

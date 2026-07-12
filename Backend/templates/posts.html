@@ -8,12 +8,34 @@
 
 <h1>게시판</h1>
 
+{% if session.username %}
+    <p>
+        👤 현재 로그인 :
+        <b>{{ session.username }}</b>
+    </p>
+
+    <a href="/logout">로그아웃</a>
+
+{% else %}
+    <p>로그인되지 않았습니다.</p>
+
+    <a href="/login">로그인</a>
+
+{% endif %}
+
+<hr>
+
 <h2>게시글 작성</h2>
 
 <form method="POST">
 
     제목 :
-    <input type="text" name="title" required>
+    <input
+        type="text"
+        name="title"
+        maxlength="100"
+        required
+    >
 
     <br><br>
 
@@ -22,10 +44,6 @@
 
     <br><br>
 
-    작성자 :
-    <input type="text" name="writer" required>
-
-    <br><br>
 
     <input type="submit" value="작성">
 
@@ -61,6 +79,21 @@
         <p>{{ post[2] }}</p>
 
         <small>작성자 : {{ post[3] }}</small>
+
+        <br><br>
+
+        <a href="/posts/edit/{{ post[0] }}">
+            수정
+        </a>
+
+        &nbsp;&nbsp;
+
+        <a
+            href="/posts/delete/{{ post[0] }}"
+            onclick="return confirm('삭제하시겠습니까?');"
+        >
+            삭제
+        </a>
 
         <hr>
 
