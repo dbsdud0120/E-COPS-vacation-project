@@ -55,7 +55,5 @@ docker run report
 ## 출력
 - HTML 리포트: 다크 테마, 심각도별 색상 배지, 요약 카운트 포함
 - PDF 리포트: 동일한 내용을 WeasyPrint로 PDF 변환
-
-## 출력
 - HTML 리포트: 다크 테마, 심각도별 색상 배지, 요약 카운트 포함
 - PDF 리포트: 동일한 내용을 WeasyPrint로 PDF 변환
