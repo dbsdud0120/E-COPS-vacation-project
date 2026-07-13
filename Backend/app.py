@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify, session
 import os
+import re
 import pymysql
 from werkzeug.security import generate_password_hash, check_password_hash
 from upload import upload_bp
@@ -31,27 +32,36 @@ def home():
 
 
 # 회원가입
+# 회원가입
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
 
     if request.method == "POST":
 
-        username = request.form.get("username")
-        password = request.form.get("password")
-
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
 
         # 입력값 검증
         if not username or not password:
             return "아이디와 비밀번호를 입력하세요."
 
+        # 아이디 길이 제한
+        if len(username) < 4 or len(username) > 20:
+            return "아이디는 4~20자만 가능합니다."
+
+        # 비밀번호 길이 제한
+        if len(password) < 8 or len(password) > 20:
+            return "비밀번호는 8~20자만 가능합니다."
+
+        # 아이디 특수문자 제한
+        if not re.fullmatch(r"[A-Za-z0-9_]+", username):
+            return "아이디는 영문, 숫자, _(언더바)만 사용할 수 있습니다."
 
         # 비밀번호 해시
         hashed_password = generate_password_hash(password)
 
-
         conn = get_db()
         cursor = conn.cursor()
-
 
         cursor.execute(
             """
@@ -61,13 +71,10 @@ def signup():
             (username, hashed_password)
         )
 
-
         conn.commit()
         conn.close()
 
-
         return "회원가입 성공!"
-
 
     return render_template("signup.html")
 
@@ -145,6 +152,58 @@ def login():
         return "아이디 또는 비밀번호가 올바르지 않습니다."
 
     return render_template("login.html")
+
+# ==========================================
+# 의도적 취약점 예제: Broken Authentication
+# 비밀번호 검증 없이 사용자 존재 여부만 확인
+# 실제 서비스에서는 사용하면 안 됨
+# ==========================================
+
+@app.route("/vuln/broken-auth", methods=["POST"])
+def vuln_broken_auth():
+
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+
+    if not username or not password:
+        return jsonify({
+            "success": False,
+            "message": "아이디와 비밀번호를 입력하세요."
+        }), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT * FROM users
+        WHERE username=%s
+        """,
+        (username,)
+    )
+
+    user = cursor.fetchone()
+
+    conn.close()
+
+    # -----------------------------
+    # 의도적 취약점 
+    # 비밀번호를 검증하지 않고
+    # 사용자 존재 여부만 확인
+    # -----------------------------
+    if user:
+
+        session["username"] = username
+
+        return jsonify({
+            "success": True,
+            "message": "로그인 성공 (Broken Authentication)"
+        })
+
+    return jsonify({
+        "success": False,
+        "message": "존재하지 않는 사용자입니다."
+    }), 404
 
 # 로그아웃
 @app.route("/logout")
