@@ -44,6 +44,11 @@ services:
     depends_on:
       - backend
 
+    command:
+    - python
+    - scanner.py
+    - http://backend:5000
+
     networks:
       - security-network
 
