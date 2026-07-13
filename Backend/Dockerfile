@@ -9,8 +9,11 @@ COPY . .
 # Python 라이브러리 설치
 RUN pip install --no-cache-dir -r requirements.txt
 
+# entrypoint 실행 권한 부여
+RUN chmod +x entrypoint.sh
+
 # Flask 실행 포트
 EXPOSE 5000
 
-# 컨테이너 실행 시 Flask 실행
-CMD ["python", "app.py"]
+# entrypoint 실행
+ENTRYPOINT ["./entrypoint.sh"]
