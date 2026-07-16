@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, jsonify, session
 import os
 import re
+import datetime
+import jwt
 import pymysql
 from werkzeug.security import generate_password_hash, check_password_hash
 from upload import upload_bp
@@ -12,6 +14,16 @@ app.register_blueprint(upload_bp)
 # 세션 암호화 키
 app.secret_key = "evulnscanner-secret-key"
 
+# JWT 설정
+JWT_SECRET = os.getenv("JWT_SECRET", "evulnscanner-jwt-secret")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = 30
+
+# Rate Limit 설정
+MAX_LOGIN_ATTEMPTS = 5
+LOCK_TIME = 30  # 초
+
+login_attempts = {}
 
 def get_db():
     conn = pymysql.connect(
@@ -31,7 +43,6 @@ def home():
 
 
 
-# 회원가입
 # 회원가입
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -114,7 +125,8 @@ def users():
 
 
 
-#로그인
+
+# 로그인
 @app.route("/login", methods=["GET", "POST"])
 def login():
 
@@ -126,6 +138,24 @@ def login():
         # 입력값 검증
         if not username or not password:
             return "아이디와 비밀번호를 모두 입력하세요."
+
+    
+        now = datetime.datetime.now()
+
+        if username in login_attempts:
+            attempt = login_attempts[username]
+
+            # 잠금 시간이 지나지 않았으면 로그인 차단
+            if (
+                attempt["count"] >= MAX_LOGIN_ATTEMPTS
+                and (now - attempt["last_attempt"]).seconds < LOCK_TIME
+            ):
+                remain = LOCK_TIME - (now - attempt["last_attempt"]).seconds
+                return f"로그인 시도 횟수를 초과했습니다. {remain}초 후 다시 시도하세요."
+
+            # 잠금 시간이 지나면 초기화
+            if (now - attempt["last_attempt"]).seconds >= LOCK_TIME:
+                login_attempts.pop(username)
 
         conn = get_db()
         cursor = conn.cursor()
@@ -142,12 +172,25 @@ def login():
 
         conn.close()
 
+        # 로그인 성공
         if user and check_password_hash(user[2], password):
 
-            # 로그인 성공 → 세션 저장
             session["username"] = username
 
+            # 로그인 성공 시 실패 횟수 초기화
+            login_attempts.pop(username, None)
+
             return "로그인 성공!"
+
+        # 로그인 실패
+        if username not in login_attempts:
+            login_attempts[username] = {
+                "count": 1,
+                "last_attempt": now
+            }
+        else:
+            login_attempts[username]["count"] += 1
+            login_attempts[username]["last_attempt"] = now
 
         return "아이디 또는 비밀번호가 올바르지 않습니다."
 
@@ -205,6 +248,56 @@ def vuln_broken_auth():
         "message": "존재하지 않는 사용자입니다."
     }), 404
 
+# ==========================================
+# 의도적 취약점 예제: Rate Limit Missing
+# 로그인 요청 횟수를 제한하지 않음
+# 실제 서비스에서는 사용하면 안 됨
+# ==========================================
+
+@app.route("/vuln/rate-limit", methods=["POST"])
+def vuln_rate_limit():
+
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+
+    if not username or not password:
+        return jsonify({
+            "success": False,
+            "message": "아이디와 비밀번호를 입력하세요."
+        }), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT * FROM users
+        WHERE username=%s
+        """,
+        (username,)
+    )
+
+    user = cursor.fetchone()
+
+    conn.close()
+
+    # ----------------------------------
+    # 의도적 취약점
+    # 로그인 실패 횟수 제한 없음
+    # 요청 횟수 제한 없음
+    # ----------------------------------
+    if user and check_password_hash(user[2], password):
+        return jsonify({
+            "success": True,
+            "message": "로그인 성공"
+        })
+
+    return jsonify({
+        "success": False,
+        "message": "아이디 또는 비밀번호가 올바르지 않습니다."
+    }), 401
+
+
 # 로그아웃
 @app.route("/logout")
 def logout():
@@ -218,7 +311,89 @@ def logout():
     </script>
     """
 
+# ==========================================
+# JWT 발급 API
+# 로그인 성공 시 JWT 발급
+# ==========================================
 
+@app.route("/api/token", methods=["POST"])
+def issue_token():
+
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+
+    if not username or not password:
+        return jsonify({
+            "success": False,
+            "message": "아이디와 비밀번호를 입력하세요."
+        }), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT * FROM users
+        WHERE username=%s
+        """,
+        (username,)
+    )
+
+    user = cursor.fetchone()
+
+    conn.close()
+
+    if not user or not check_password_hash(user[2], password):
+        return jsonify({
+            "success": False,
+            "message": "아이디 또는 비밀번호가 올바르지 않습니다."
+        }), 401
+
+    payload = {
+        "username": username,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=JWT_EXPIRE_MINUTES)
+    }
+
+    token = jwt.encode(
+        payload,
+        JWT_SECRET,
+        algorithm=JWT_ALGORITHM
+    )
+
+    return jsonify({
+        "success": True,
+        "token": token
+    })
+
+# ==========================================
+# 의도적 취약점 예제: JWT Validation Missing
+# Authorization 헤더는 확인하지만
+# JWT 서명 검증을 하지 않음
+# ==========================================
+
+@app.route("/vuln/profile")
+def vuln_profile():
+
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header:
+        return jsonify({
+            "success": False,
+            "message": "Authorization 헤더가 없습니다."
+        }), 401
+
+    # ----------------------------------
+    # 의도적 취약점
+    # JWT를 decode하거나 서명을 검증하지 않음
+    # ----------------------------------
+
+    token = auth_header.replace("Bearer ", "")
+
+    return jsonify({
+        "success": True,
+        "message": "JWT 검증 없이 접근 성공",
+        "received_token": token
+    })
 
 
 @app.route("/posts", methods=["GET","POST"])
@@ -702,7 +877,7 @@ def vuln_login():
     cursor=conn.cursor()
 
 
-    # 의도적 취약점 발생 부분
+# 의도적 취약점 발생 부분
 # Prepared Statement를 사용하지 않고
 # 문자열 조합으로 SQL Query 생성
     query=f"""
