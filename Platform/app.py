@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file, jsonify
+from flask import Flask, render_template, request, send_file, jsonify, redirect
 import subprocess
 import os
 import uuid
@@ -124,7 +124,6 @@ def index():
 
     return render_template(
         "index.html"
-        status="Ready"
     )
 
 
@@ -160,13 +159,24 @@ def scan():
     thread.start()
 
 
-    return jsonify(
-        {
-            "job_id": job_id,
-            "status": "Started"
-        }
+    # 결과 페이지 이동
+    return redirect(
+        f"/result/{job_id}"
     )
 
+# 결과 화면
+@app.route("/result/<job_id>")
+def result(job_id):
+
+    if job_id not in scan_jobs:
+        return "Job not found"
+
+
+    return render_template(
+        "result.html",
+        job_id=job_id,
+        status=scan_jobs[job_id]["status"]
+    )
 
 
 # Scan 상태 확인
@@ -174,6 +184,7 @@ def scan():
 def status(job_id):
 
     if job_id not in scan_jobs:
+
         return jsonify(
             {
                 "error": "Job not found"
