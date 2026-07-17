@@ -1,14 +1,24 @@
 from flask import Flask, render_template, request, send_file
 import subprocess
 import os
-import time
+import glob
 
 
 app = Flask(__name__)
 
 
-# 결과 파일 위치
-RESULT_PATH = "/app/results/latest.json"
+# Scanner가 생성한 가장 최근 결과(JSON) 찾기
+def get_latest_result():
+
+    # scan_*.json 파일 목록 조회
+    files = glob.glob("/app/results/scan_*.json")
+
+    # 결과가 없으면 None 반환
+    if not files:
+        return None
+
+    # 가장 최근 생성된 파일 반환
+    return max(files, key=os.path.getmtime)
 
 
 # 현재 진행 상태 저장
@@ -48,20 +58,22 @@ def scan():
             check=True
         )
 
-
-        # 결과 파일 생성 확인
+        # 상태 변경
         scan_status["status"] = "Generating Report..."
 
+        # 최신 결과 파일 찾기
+        result_file = get_latest_result()
 
-        if not os.path.exists(RESULT_PATH):
+        if result_file is None:
             return "Scan result not found"
 
 
-        # Report 실행
+        # Report 실행 (최신 JSON 파일 경로 전달)
         subprocess.run(
             [
                 "python",
-                "/app/report/report.py"
+                "/app/report/report.py",
+                result_file
             ],
             check=True
         )
