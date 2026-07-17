@@ -90,11 +90,18 @@ def run_scan_job(job_id, url):
 
 
         # Report 실행
+        report_prefix = os.path.join(
+            result_dir,
+            "report"
+        )
+        
+        
         subprocess.run(
             [
                 "python",
-                "/app/report/report.py",
-                json_path
+                "/app/report/report_generator.py",
+                json_path,
+                report_prefix
             ],
             check=True,
             cwd="/app/report"
