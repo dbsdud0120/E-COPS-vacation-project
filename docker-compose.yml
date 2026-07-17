@@ -49,6 +49,10 @@ services:
     - scanner.py
     - http://backend:5000
 
+    # Scanner가 생성한 검사 결과(JSON)를 Report 컨테이너와 공유하기 위한 볼륨
+    volumes:
+      - scanner-results:/app/results
+
     networks:
       - security-network
 
@@ -68,6 +72,10 @@ services:
     # Scanner 완료 후 Report 실행
     depends_on:
       - scanner
+
+    # Scanner가 생성한 검사 결과(JSON)를 동일한 경로에서 읽기 위한 공유 볼륨
+    volumes:
+      - scanner-results:/app/results
 
     networks:
       - security-network
@@ -104,8 +112,10 @@ services:
 
 # Docker Volume
 # 컨테이너를 삭제해도 DB 데이터는 유지됨
+# Scanner와 Report가 검사 결과를 공유하기 위한 볼륨
 volumes:
   mysql-data:
+  scanner-results:
 
 
 # Docker Network
