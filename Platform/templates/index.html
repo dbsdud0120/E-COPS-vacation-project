@@ -1,47 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 
 <head>
-<title>
-Security Scanner Platform
-</title>
+    <meta charset="UTF-8">
+    <title>
+        Security Scanner Platform
+    </title>
 </head>
 
 
 <body>
 
-
 <h1>
-Security Scanner Platform
+    Security Scanner Platform
 </h1>
 
 
 <form action="/scan" method="POST">
 
+    <label>
+        Target URL
+    </label>
 
-<label>
-Target URL
-</label>
+    <br>
 
+    <input
+        type="text"
+        name="url"
+        placeholder="http://target.com"
+        required
+    >
 
-<input 
-type="text"
-name="url"
-placeholder="http://target.com"
-required>
+    <br><br>
 
-
-<button>
-Scan
-</button>
-
+    <button type="submit">
+        Scan
+    </button>
 
 </form>
-
-
-<h3>
-Status : {{status}}
-</h3>
 
 
 </body>
