@@ -45,6 +45,11 @@ def run_scan_job(job_id, url):
 
 
         # Scanner 실행
+        env = os.environ.copy()
+
+        env["RESULTS_DIR"] = result_dir
+
+
         subprocess.run(
             [
                 "python",
@@ -52,9 +57,9 @@ def run_scan_job(job_id, url):
                 url
             ],
             check=True,
-            cwd="/app/scanner"
+            cwd="/app/scanner",
+            env=env
         )
-
 
         # Scanner 결과 파일 찾기
         files = [
