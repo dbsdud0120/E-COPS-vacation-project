@@ -80,6 +80,36 @@ services:
     networks:
       - security-network
 
+  # 사용자 UI 및 Scanner/Report 실행 제어 플랫폼
+  platform:
+
+    # Platform Dockerfile 사용
+    build:
+      context: ./Platform
+
+
+    container_name: security-platform
+
+
+    # 사용자 접속 포트
+    ports:
+      - "8080:8080"
+
+
+    # Scanner와 Report 결과 공유
+    volumes:
+      - scanner-results:/app/results
+
+
+    depends_on:
+      - backend
+      - scanner
+      - report
+
+
+    networks:
+      - security-network
+
 
   # MySQL Database
   db:
