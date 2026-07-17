@@ -62,8 +62,9 @@ def run_scan_job(job_id, url):
         )
 
         # Scanner 결과 파일 찾기
+        
         files = [
-            f for f in os.listdir(RESULTS_DIR)
+            f for f in os.listdir(result_dir)
             if f.endswith(".json")
         ]
 
@@ -74,24 +75,14 @@ def run_scan_job(job_id, url):
 
         latest_file = max(
             [
-                os.path.join(RESULTS_DIR, f)
+                os.path.join(result_dir, f)
                 for f in files
             ],
             key=os.path.getmtime
         )
 
-
         # 결과 파일 이동
-        json_path = os.path.join(
-            result_dir,
-            "scan.json"
-        )
-
-
-        os.rename(
-            latest_file,
-            json_path
-        )
+        json_path = latest_file
 
 
         # Report 실행 상태
