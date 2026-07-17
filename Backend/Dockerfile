@@ -13,4 +13,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 5000
 
 # 컨테이너 실행 시 Flask 실행
-CMD ["python", "app.py"]
+CMD ["sh", "-c", "python init_db.py && python app.py"]
