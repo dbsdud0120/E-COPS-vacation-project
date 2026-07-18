@@ -9,3 +9,4 @@
 |IDOR|요청자 권한과 객체 소유자 일치 여부 서버단에서 검증|
 |Missing JWT Verification|서명 검증 필수화, 토큰 만료시간 설정, Secret Key 안전하게 관리|
 |Missing Rate Limiting|API Gateway 또는 미들웨어 레벨에서 요청 횟수 제한 적용|
+|Security Headers|X-Frame-Options, Content-Security-Policy, X-Content-Type-Options, Strict-Transport-Security 등 보안 헤더 설정|
