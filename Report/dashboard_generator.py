@@ -2,7 +2,7 @@
 """
 dashboard_generator.py  (3주차: 대시보드 제작)
 
-report_generator_v2.py 가 만드는 "취약점 하나하나의 상세 카드형 리포트" 와 달리,
+report_generator.py 가 만드는 "취약점 하나하나의 상세 카드형 리포트" 와 달리,
 이 스크립트는 "숫자와 그래프로 전체 현황을 한눈에 보여주는 요약 대시보드"를 만든다.
 
 - 전체/등급별(Critical, High, Medium, Low) 취약점 개수
@@ -10,7 +10,7 @@ report_generator_v2.py 가 만드는 "취약점 하나하나의 상세 카드형
 - 등급별 비율 (도넛차트)
 - Critical/High 상위 항목 목록
 
-report_generator_v2.py 와 같은 폴더(Report/)에 두고 실행해야 한다.
+report_generator.py 와 같은 폴더(Report/)에 두고 실행해야 한다.
 (내부의 데이터 정규화 함수들을 그대로 재사용하기 때문)
 
 사용법:
@@ -29,8 +29,8 @@ from collections import Counter
 
 from jinja2 import Environment
 
-# report_generator_v2.py 에 이미 만들어둔 정규화 로직을 그대로 재사용
-from report_generator_v2 import (
+# report_generator.py 에 이미 만들어둔 정규화 로직을 그대로 재사용
+from report_generator import (
     SEVERITY_ORDER,
     SEVERITY_COLOR,
     extract_raw_items,
