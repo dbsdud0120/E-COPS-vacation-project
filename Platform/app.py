@@ -118,6 +118,7 @@ def scan():
     thread = threading.Thread(
         target=run_scan_job,
         args=(job_id, url)
+        daemon=True
     )
 
 
