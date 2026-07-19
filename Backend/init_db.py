@@ -1,10 +1,11 @@
+import os
 import pymysql
 
 conn = pymysql.connect(
-    host="db",
-    user="user",
-    password="1234",
-    database="evulnscanner",
+    host=os.getenv("MYSQL_HOST", "localhost"),
+    user=os.getenv("MYSQL_USER", "user"),
+    password=os.getenv("MYSQL_PASSWORD", "1234"),
+    database=os.getenv("MYSQL_DATABASE", "evulnscanner"),
     charset="utf8mb4"
 )
 
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS posts (
 """)
 
 conn.commit()
+
 cursor.close()
 conn.close()
 
