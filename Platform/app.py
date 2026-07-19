@@ -46,10 +46,6 @@ def run_scan_job(job_id, url):
 
 
         # Scanner 실행
-        env = os.environ.copy()
-
-        env["RESULTS_DIR"] = result_dir
-
 
         scan_response = requests.post(
             "http://scanner:5001/scan",
@@ -62,39 +58,10 @@ def run_scan_job(job_id, url):
 
         json_path = scan_result["json_path"]
 
-        # Scanner 결과 파일 찾기
-        
-        files = [
-            f for f in os.listdir(result_dir)
-            if f.endswith(".json")
-        ]
-
-
-        if not files:
-            raise Exception("Scan result not found")
-
-
-        latest_file = max(
-            [
-                os.path.join(result_dir, f)
-                for f in files
-            ],
-            key=os.path.getmtime
-        )
-
-        # 결과 파일 이동
-        json_path = latest_file
-
 
         # Report 실행 상태
         scan_jobs[job_id]["status"] = "Generating Report"
 
-
-        # Report 실행
-        report_prefix = os.path.join(
-            result_dir,
-            "report"
-        )
         
         
         report_response = requests.post(
@@ -104,7 +71,6 @@ def run_scan_job(job_id, url):
             }
         )
 
-        report_result = report_response.json()
 
 
         scan_jobs[job_id]["status"] = "Completed"
