@@ -27,16 +27,21 @@ JWT 서명 검증 누락(Missing JWT Verification) 탐지. (3주차 추가)
    - 로그인 응답 바디/쿠키/헤더에 토큰을 포함시키기만 하면 이 check가 자동으로 찾아서 검사함.
    - 토큰이 특정 커스텀 헤더에만 있다면 EXTRA_HEADER_NAMES에 추가.
 
-⚠️ 알려진 한계: 이 check는 다른 checks와 동일하게 (session, page, payloads) 시그니처로
-   "페이지 1개" 단위로 동작한다. 즉 토큰을 발견한 그 페이지 자체에 변조 토큰을 재요청해서
-   테스트하며, "토큰은 A 페이지에서 발급되고 실제 보호되는 리소스는 B 페이지"처럼
-   발급/사용 페이지가 분리된 경우는 잡아내지 못한다 (검증 완료: 실제로 서명을 검증하지
-   않는 엔드포인트에 변조 토큰을 보내면 200이 반환되는 것을 목업 서버로 확인함 -
-   다만 그 목업처럼 토큰 발급과 검증 엔드포인트가 다르면 크롤러가 각 페이지를 따로
-   방문하는 현재 구조상 자동으로는 연결되지 않음). 이런 케이스까지 잡으려면 "발견한
-   토큰을 다른 페이지들에도 재사용해서 테스트"하도록 scanner.py 쪽에서 토큰을 여러
-   check 호출 간에 공유하는 구조 변경이 필요하며, 이는 이번 3주차 범위를 벗어나
-   TODO로 남겨둔다.
+✅ 발급/사용 페이지 분리 대응 (PR 리뷰 코멘트 반영, 기존 TODO 해결):
+   scanner.py는 스캔 전체에서 동일한 session 객체를 재사용해 모든 check를 호출한다.
+   이 점을 이용해, 이 check가 어떤 페이지에서든 새로 발견한 토큰을 session에
+   부착된 공유 상태(session._jwt_scan_state)에 누적 저장한다. 이후 방문하는
+   모든 페이지에서는 "그 페이지 자신이 발급한 토큰"뿐 아니라 "지금까지 스캔
+   전체에서 발견된 모든 토큰"으로 변조 테스트를 수행한다.
+   -> "토큰은 A 페이지(발급)에서 나오고 실제 보호되는 리소스는 B 페이지(사용)"처럼
+      발급/사용 페이지가 분리된 경우에도, 크롤러가 A -> B 순서로 두 페이지를 모두
+      방문하기만 하면 B 페이지 검사 시점에 A에서 찾은 토큰이 함께 테스트된다.
+   -> exp(만료시간) 누락 판정은 토큰 단위로 한 번만 기록한다 (같은 토큰이 여러 페이지에서
+      반복 발견돼도 exp 관련 finding이 페이지 수만큼 중복 생성되지 않도록 함). 서명 검증
+      누락(alg=none/서명 변조) 판정은 "어느 페이지에서 뚫리는지"가 중요한 정보이므로
+      토큰 x 페이지 조합마다 기록한다.
+   -> 크롤러가 아직 방문하지 않은 페이지(사용 페이지)는 여전히 검사할 수 없다. 크롤링
+      깊이(--depth)나 --swagger 시드에 그 페이지가 포함되어야 한다.
 """
 from __future__ import annotations
 import base64
@@ -137,40 +142,67 @@ def _clean_get(url: str, headers: dict | None = None, timeout: int = 5):
         return s.get(url, headers=headers or {}, timeout=timeout)
 
 
+def _get_shared_state(session) -> dict:
+    """
+    scanner.py가 스캔 전체에서 재사용하는 session 객체에 상태를 부착해서
+    "발급 페이지에서 찾은 토큰"을 "이후 방문하는 사용 페이지들"에서도 재사용할 수 있게 한다.
+    (checks 공통 시그니처 (session, page, payloads)는 그대로 유지 - session만 활용)
+    """
+    state = getattr(session, "_jwt_scan_state", None)
+    if state is None:
+        state = {
+            "tokens": set(),        # 스캔 전체에서 지금까지 발견된 모든 토큰
+            "exp_checked": set(),   # exp 누락 여부를 이미 기록한 토큰 (중복 기록 방지)
+        }
+        session._jwt_scan_state = state
+    return state
+
+
 def run(session, page, payloads: list[str]) -> list[Finding]:
     findings: list[Finding] = []
 
     if page.status_code == -1:
         return findings
 
+    state = _get_shared_state(session)
+
     try:
         baseline = session.get(page.url, timeout=5)
     except Exception:
         return findings
 
-    tokens = _find_tokens(baseline)
-    if not tokens:
-        return findings  # 이 페이지에서 JWT를 발견하지 못함 (검사 대상 아님)
+    # 이 페이지에서 새로 발견된 토큰을 스캔 전체 공유 저장소에 누적
+    found_here = _find_tokens(baseline)
+    state["tokens"].update(found_here)
+
+    if not state["tokens"]:
+        return findings  # 지금까지 스캔 전체에서 JWT를 발견하지 못함 (검사 대상 아님)
 
     try:
         anonymous = _clean_get(page.url)
     except Exception:
         return findings
 
-    for token in tokens:
+    # "지금까지 스캔 전체에서 발견된 모든 토큰"으로 이 페이지를 검사한다.
+    # -> 토큰 발급 페이지와 사용 페이지가 분리돼 있어도, 크롤러가 두 페이지를 모두
+    #    방문했다면 사용 페이지 검사 시점에 발급 페이지에서 찾은 토큰이 함께 테스트됨.
+    for token in state["tokens"]:
         header = _looks_like_jwt(token)
-        claims = _payload_claims(token)
 
-        if "exp" not in claims:
-            findings.append(make_finding(
-                check_name=CHECK_NAME,
-                url=page.url,
-                parameter="Authorization",
-                payload=None,
-                severity=Severity.LOW,
-                evidence=f"발견된 JWT에 만료시간(exp) 클레임이 없음 (header={header})",
-                description="토큰에 만료시간이 없어, 한 번 탈취되면 무기한 재사용될 수 있습니다.",
-            ))
+        # exp 누락 판정은 토큰당 한 번만 기록 (여러 페이지에서 같은 토큰이 재사용돼도 중복 방지)
+        if token not in state["exp_checked"]:
+            state["exp_checked"].add(token)
+            claims = _payload_claims(token)
+            if "exp" not in claims:
+                findings.append(make_finding(
+                    check_name=CHECK_NAME,
+                    url=page.url,
+                    parameter="Authorization",
+                    payload=None,
+                    severity=Severity.LOW,
+                    evidence=f"발견된 JWT에 만료시간(exp) 클레임이 없음 (header={header})",
+                    description="토큰에 만료시간이 없어, 한 번 탈취되면 무기한 재사용될 수 있습니다.",
+                ))
 
         for tamper_name, tamper_fn in (
             ("alg=none 공격", _tamper_alg_none),

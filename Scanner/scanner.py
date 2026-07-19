@@ -29,7 +29,18 @@ from checks import CHECK_REGISTRY
 from swagger_seed import load_seed_urls
 
 PAYLOADS_DIR = os.path.join(os.path.dirname(__file__), "payloads")
-RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
+
+# Platform이 job_id별 결과 디렉터리를 넘겨줄 수 있도록 RESULTS_DIR을 환경 변수로 오버라이드 가능하게 함.
+# 값이 없으면 기존처럼 Scanner 내부 results/ 디렉터리를 사용 (로컬 실행 시 하위 호환).
+DEFAULT_RESULTS_DIR = os.path.join(
+    os.path.dirname(__file__),
+    "results"
+)
+
+RESULTS_DIR = os.environ.get(
+    "RESULTS_DIR",
+    DEFAULT_RESULTS_DIR
+)
 
 
 def load_payloads(check_name: str) -> list[str]:
