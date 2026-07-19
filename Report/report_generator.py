@@ -38,12 +38,13 @@ from datetime import datetime
 from jinja2 import Environment
 from weasyprint import HTML
 
-SEVERITY_ORDER = ["Critical", "High", "Medium", "Low"]
+SEVERITY_ORDER = ["Critical", "High", "Medium", "Low", "Info"]
 SEVERITY_COLOR = {
-    "Critical": "#FF4D4F",
-    "High": "#FF9E42",
-    "Medium": "#FFD166",
-    "Low": "#5CD3A3",
+    "Critical": "#E5484D",
+    "High": "#F59E0B",
+    "Medium": "#EAB308",
+    "Low": "#10B981",
+    "Info": "#94A3B8",
 }
 
 # ─────────────────────────────────────────────
@@ -272,43 +273,45 @@ HTML_TEMPLATE = """
 <style>
   body {
     font-family: "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
-    background: #0F1117;
-    color: #E6E6EA;
+    background: #F5F6FA;
+    color: #1F2430;
     margin: 0;
     padding: 32px 40px;
   }
-  h1 { font-size: 24px; margin-bottom: 4px; }
-  .meta { color: #9AA0AC; font-size: 13px; margin-bottom: 20px; }
-  .summary { display: flex; gap: 10px; margin-bottom: 24px; }
+  h1 { font-size: 24px; margin-bottom: 4px; color: #111827; }
+  .meta { color: #6B7280; font-size: 13px; margin-bottom: 20px; }
+  .summary { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
   .summary-box {
-    flex: 1; background: #171A23; border: 1px solid #262A36;
+    flex: 1; min-width: 80px; background: #FFFFFF; border: 1px solid #E2E5EC;
     border-radius: 8px; padding: 12px; text-align: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
   .summary-count { font-size: 22px; font-weight: 700; }
-  .summary-label { font-size: 11px; color: #9AA0AC; margin-top: 4px; }
+  .summary-label { font-size: 11px; color: #6B7280; margin-top: 4px; }
   .card {
-    background: #171A23; border: 1px solid #262A36; border-left: 4px solid;
+    background: #FFFFFF; border: 1px solid #E2E5EC; border-left: 4px solid;
     border-radius: 8px; padding: 14px 18px; margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   }
   .card-header { display: flex; justify-content: space-between; align-items: center; }
-  .vuln-title { font-size: 15px; font-weight: 700; }
+  .vuln-title { font-size: 15px; font-weight: 700; color: #111827; }
   .badge {
-    font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; color: #14151b;
+    font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; color: #FFFFFF;
   }
-  .url { font-family: monospace; font-size: 12px; color: #9AA0AC; margin: 4px 0 10px; }
-  .field-label { font-size: 10.5px; text-transform: uppercase; color: #9AA0AC; margin-top: 8px; }
+  .url { font-family: monospace; font-size: 12px; color: #6B7280; margin: 4px 0 10px; }
+  .field-label { font-size: 10.5px; text-transform: uppercase; color: #6B7280; margin-top: 8px; }
   .field-value {
-    font-size: 12.5px; background: #0F1117; border: 1px solid #262A36;
+    font-size: 12.5px; background: #F9FAFB; border: 1px solid #E2E5EC;
     border-radius: 6px; padding: 6px 8px; margin-top: 3px;
-    white-space: pre-wrap; word-break: break-word;
+    white-space: pre-wrap; word-break: break-word; color: #1F2430;
   }
-  .mitigation { color: #5CD3A3; }
+  .mitigation { color: #059669; }
   .business-box {
-    margin-top: 10px; background: #14181f; border: 1px solid #2A3050;
+    margin-top: 10px; background: #F8FAFC; border: 1px solid #E2E5EC;
     border-radius: 8px; padding: 10px 12px;
   }
-  .business-box .label { font-size: 10.5px; text-transform: uppercase; color: #35C2E8; font-weight: 700; margin-bottom: 4px; }
-  .business-box .text { font-size: 12.5px; line-height: 1.55; color: #C7CBD6; }
+  .business-box .label { font-size: 10.5px; text-transform: uppercase; color: #2563EB; font-weight: 700; margin-bottom: 4px; }
+  .business-box .text { font-size: 12.5px; line-height: 1.55; color: #374151; }
   .business-box + .business-box { margin-top: 8px; }
 </style>
 </head>
