@@ -1,41 +1,66 @@
 <!DOCTYPE html>
-
 <html>
 
 <head>
-<title>
-Scan Result
-</title>
+    <title>Scan Result</title>
 </head>
-
 
 <body>
 
+    <h1 id="status-title">Scanning...</h1>
 
-<h1>
-Scan Completed
-</h1>
+    <p id="status-message">
+        취약점 분석이 진행 중입니다. 잠시만 기다려 주세요.
+    </p>
 
+    <div id="download-links" style="display: none;">
+        <a href="/download/html/{{ job_id }}">
+            HTML Report Download
+        </a>
 
-<p>
-취약점 분석이 완료되었습니다.
-</p>
+        <br><br>
 
+        <a href="/download/pdf/{{ job_id }}">
+            PDF Report Download
+        </a>
+    </div>
 
-<a href="/download/html/{{ job_id }}">
-HTML Report Download
-</a>
+    <script>
+        function checkStatus() {
+            fetch("/status/{{ job_id }}")
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === "Completed") {
+                        document.getElementById("status-title").textContent = "Scan Completed";
+                        document.getElementById("status-message").textContent = "취약점 분석이 완료되었습니다.";
+                        document.getElementById("download-links").style.display = "block";
 
+                        // 완료되면 polling 종료
+                        clearInterval(statusInterval);
+                    } else if (data.status === "Failed") {
+                        document.getElementById("status-title").textContent = "Scan Failed";
+                        document.getElementById("status-message").textContent = "분석 중 오류가 발생했습니다.";
 
-<br>
+                        clearInterval(statusInterval);
+                    } else {
+                        // Scanning 또는 Pending
+                        document.getElementById("status-title").textContent = "Scanning...";
+                        document.getElementById("status-message").textContent =
+                            "취약점 분석이 진행 중입니다. 잠시만 기다려 주세요.";
+                    }
+                })
+                .catch(error => {
+                    console.error("Status check failed:", error);
+                });
+        }
 
+        // 페이지 로드 직후 한 번 실행
+        checkStatus();
 
-<a href="/download/pdf/{{ job_id }}">
-PDF Report Download
-</a>
-
+        // 2초마다 상태 확인
+        const statusInterval = setInterval(checkStatus, 2000);
+    </script>
 
 </body>
-
 
 </html>
