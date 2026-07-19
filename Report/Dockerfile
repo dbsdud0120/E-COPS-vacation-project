@@ -21,4 +21,4 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 보고서 생성 실행
-CMD ["python", "report_generator.py", "sample_result.json", "sample_report"]
+CMD ["python", "report_server.py"]
