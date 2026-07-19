@@ -3,6 +3,7 @@ import subprocess
 import os
 import uuid
 import threading
+import requests
 
 
 app = Flask(__name__)
@@ -50,16 +51,16 @@ def run_scan_job(job_id, url):
         env["RESULTS_DIR"] = result_dir
 
 
-        subprocess.run(
-            [
-                "python",
-                "/app/scanner/scanner.py",
-                url
-            ],
-            check=True,
-            cwd="/app/scanner",
-            env=env
+        scan_response = requests.post(
+            "http://scanner:5001/scan",
+            json={
+                "url": url
+            }
         )
+
+        scan_result = scan_response.json()
+
+        json_path = scan_result["json_path"]
 
         # Scanner 결과 파일 찾기
         
@@ -96,16 +97,14 @@ def run_scan_job(job_id, url):
         )
         
         
-        subprocess.run(
-            [
-                "python",
-                "/app/report/report_generator.py",
-                json_path,
-                report_prefix
-            ],
-            check=True,
-            cwd="/app/report"
+        report_response = requests.post(
+            "http://report:5002/report",
+            json={
+                "json_path": json_path
+            }
         )
+
+        report_result = report_response.json()
 
 
         scan_jobs[job_id]["status"] = "Completed"
