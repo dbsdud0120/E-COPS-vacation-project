@@ -59,7 +59,7 @@ def upload():
 # 실제 서비스에서는 사용하면 안 됨
 # ==========================================
 
-@upload_bp.route("/vuln/upload", methods=["GET","POST"])
+@upload_bp.route("/vuln/upload", methods=["GET", "POST"])
 def vuln_upload():
 
     if request.method == "POST":
@@ -69,9 +69,13 @@ def vuln_upload():
         if file is None or file.filename == "":
             return "파일을 선택하세요."
 
+        # 파일명만 안전하게 처리
+        # (확장자 검증은 하지 않아 File Upload 취약점은 그대로 유지)
+        filename = secure_filename(file.filename)
+
         os.makedirs(VULN_UPLOAD_FOLDER, exist_ok=True)
 
-        file.save(os.path.join(VULN_UPLOAD_FOLDER, file.filename))
+        file.save(os.path.join(VULN_UPLOAD_FOLDER, filename))
 
         return "취약 업로드 성공!"
 
