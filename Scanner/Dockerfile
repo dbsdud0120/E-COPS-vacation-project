@@ -12,4 +12,4 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 컨테이너 실행 시 Scanner 프로그램 실행
-CMD ["python", "scanner.py"]
+CMD ["python", "scanner_server.py"]
