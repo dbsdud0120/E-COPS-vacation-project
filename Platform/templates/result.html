@@ -1,66 +1,57 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="ko">
 <head>
-    <title>Scan Result</title>
+<meta charset="UTF-8">
+<title>Scan Result</title>
 </head>
-
 <body>
-
-    <h1 id="status-title">Scanning...</h1>
-
-    <p id="status-message">
-        취약점 분석이 진행 중입니다. 잠시만 기다려 주세요.
-    </p>
-
-    <div id="download-links" style="display: none;">
-        <a href="/download/html/{{ job_id }}">
-            HTML Report Download
-        </a>
-
-        <br><br>
-
-        <a href="/download/pdf/{{ job_id }}">
-            PDF Report Download
-        </a>
-    </div>
-
-    <script>
-        function checkStatus() {
-            fetch("/status/{{ job_id }}")
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === "Completed") {
-                        document.getElementById("status-title").textContent = "Scan Completed";
-                        document.getElementById("status-message").textContent = "취약점 분석이 완료되었습니다.";
-                        document.getElementById("download-links").style.display = "block";
-
-                        // 완료되면 polling 종료
-                        clearInterval(statusInterval);
-                    } else if (data.status === "Failed") {
-                        document.getElementById("status-title").textContent = "Scan Failed";
-                        document.getElementById("status-message").textContent = "분석 중 오류가 발생했습니다.";
-
-                        clearInterval(statusInterval);
-                    } else {
-                        // Scanning 또는 Pending
-                        document.getElementById("status-title").textContent = "Scanning...";
-                        document.getElementById("status-message").textContent =
-                            "취약점 분석이 진행 중입니다. 잠시만 기다려 주세요.";
-                    }
-                })
-                .catch(error => {
-                    console.error("Status check failed:", error);
-                });
+  <h1 id="status-title">확인 중...</h1>
+  <p id="status-desc">스캔 상태를 확인하고 있습니다.</p>
+  <div id="download-links" style="display:none;">
+    <a href="/download/html/{{ job_id }}">HTML Report Download</a>
+    <br>
+    <a href="/download/pdf/{{ job_id }}">PDF Report Download</a>
+  </div>
+  <p id="error-text" style="color:red;"></p>
+  <script>
+    const jobId = "{{ job_id }}";
+    const titleEl = document.getElementById("status-title");
+    const descEl = document.getElementById("status-desc");
+    const downloadEl = document.getElementById("download-links");
+    const errorEl = document.getElementById("error-text");
+    let intervalId = null;
+    async function checkStatus() {
+      try {
+        const res = await fetch(`/status/${jobId}`);
+        const data = await res.json();
+        if (data.error) {
+          titleEl.textContent = "Job Not Found";
+          descEl.textContent = data.error;
+          clearInterval(intervalId);
+          return;
         }
-
-        // 페이지 로드 직후 한 번 실행
-        checkStatus();
-
-        // 2초마다 상태 확인
-        const statusInterval = setInterval(checkStatus, 2000);
-    </script>
-
+        if (data.status === "Completed") {
+          titleEl.textContent = "Scan Completed";
+          descEl.textContent = "취약점 분석이 완료되었습니다.";
+          downloadEl.style.display = "block";
+          clearInterval(intervalId);
+        } else if (data.status === "Error") {
+          titleEl.textContent = "Scan Failed";
+          descEl.textContent = "오류가 발생했습니다.";
+          errorEl.textContent = data.error || "";
+          clearInterval(intervalId);
+        } else {
+          titleEl.textContent = "Scanning...";
+          descEl.textContent = `현재 상태: ${data.status}`;
+        }
+      } catch (e) {
+        titleEl.textContent = "상태 확인 실패";
+        descEl.textContent = "서버와 통신 중 오류가 발생했습니다.";
+        clearInterval(intervalId);
+      }
+    }
+    checkStatus();
+    intervalId = setInterval(checkStatus, 2000);
+  </script>
 </body>
-
 </html>
