@@ -33,7 +33,6 @@ services:
 
 
   # 웹/API 자동 진단 엔진 
-  # Platform이 scanner.py를 직접 실행하므로 별도 컨테이너는 실행하지 않음(코드 보관용)
   scanner:
     # scanner 폴더의 Dockerfile 사용
     build:
@@ -42,13 +41,8 @@ services:
     container_name: security-scanner
 
 
-    command:
-      - python
-      - -c
-      - |
-        import time
-        while True:
-            time.sleep(3600)
+    ports:
+    - "5001:5001
     
     # Scanner가 생성한 검사 결과(JSON)를 Report 컨테이너와 공유하기 위한 볼륨
     volumes:
@@ -59,7 +53,6 @@ services:
 
 
   # 결과 분석 및 Dashboard
-  # Platform이 report.py를 직접 실행
   report:
     # report 폴더의 Dockerfile 사용
     build:
@@ -67,13 +60,8 @@ services:
 
     container_name: report-generator
 
-    command:
-      - python
-      - -c
-      - |
-        import time
-        while True:
-            time.sleep(3600)
+    ports:
+    - "5002:5002"
 
 
     # Scanner가 생성한 검사 결과(JSON)를 동일한 경로에서 읽기 위한 공유 볼륨
