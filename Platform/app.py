@@ -71,6 +71,17 @@ def run_scan_job(job_id, url):
             }
         )
 
+        # 생성된 Report 경로 저장
+        scan_jobs[job_id]["html"] = json_path.replace(
+            "result.json",
+            "report.html"
+        )
+
+        scan_jobs[job_id]["pdf"] = json_path.replace(
+            "result.json",
+            "report.pdf"
+        )
+
 
 
         scan_jobs[job_id]["status"] = "Completed"
@@ -117,7 +128,7 @@ def scan():
     # 백그라운드 실행
     thread = threading.Thread(
         target=run_scan_job,
-        args=(job_id, url)
+        args=(job_id, url),
         daemon=True
     )
 
