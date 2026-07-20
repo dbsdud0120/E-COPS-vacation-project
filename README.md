@@ -43,23 +43,55 @@ security-scanner-platform/
 ## 시스템 구조
 
 ```
-             ┌───────────────────────┐
-             │       사용자(User)    │
-             └───────────┬───────────┘
-                         │
-                         ▼
-              취약 웹 서비스 (Backend)
-                         │
-          ┌──────────────┴──────────────┐
-          ▼                             ▼
-      MySQL Database             Scanner
-                                        │
-                                        ▼
-                              Scan Result (JSON)
-                                        │
-                                        ▼
-                                   Report
-                              (HTML / PDF)
+                        사용자
+                           |
+                           | HTTP 요청
+                           ↓
+              ┌────────────────────────┐
+              │        Platform        │
+              │   (Web UI + 제어 역할)  │
+              └────────────────────────┘
+                           |
+             ┌─────────────┴─────────────┐
+             |                           |
+             | POST /scan                | POST /report
+             ↓                           ↓
+┌──────────────────────┐      ┌──────────────────────┐
+│   Scanner Container  │      │   Report Container   │
+│                      │      │                      │
+│  scanner_server.py   │      │  report_server.py    │
+│  (Flask API Server)  │      │  (Flask API Server)  │
+│                      │      │                      │
+└──────────┬───────────┘      └──────────┬───────────┘
+           |                             |
+           | 실행 요청                    | 실행 요청
+           ↓                             ↓
+┌──────────────────────┐      ┌──────────────────────┐
+│     scanner.py       │      │ report_generator.py  │
+│                      │      │                      │
+│ - URL 크롤링         │      │ - JSON 분석          │
+│ - SQL Injection 검사 │      │ - HTML 생성          │
+│ - XSS 검사           │      │ - PDF 생성           │
+│ - 결과 JSON 생성     │      │                      │
+└──────────┬───────────┘      └──────────┬───────────┘
+           |                             |
+           |                             |
+           └─────────────┬───────────────┘
+                         ↓
+
+              ┌─────────────────────┐
+              │  scanner-results    │
+              │    Docker Volume    │
+              │                     │
+              │  result.json        │
+              │  report.html        │
+              │  report.pdf         │
+              └─────────────────────┘
+                         |
+                         ↓
+                  Platform 제공
+
+(scanner.py는 SQL Injection, XSS외에 다른 취약점 검사도 진행)
 ```
 ---
 

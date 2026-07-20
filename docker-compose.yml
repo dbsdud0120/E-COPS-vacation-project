@@ -32,7 +32,7 @@ services:
       - security-network
 
 
-  # 웹/API 자동 진단 엔진
+  # 웹/API 자동 진단 엔진 
   scanner:
     # scanner 폴더의 Dockerfile 사용
     build:
@@ -40,20 +40,19 @@ services:
 
     container_name: security-scanner
 
-    # Backend 실행 이후 Scanner 실행
-    depends_on:
-      - backend
 
-    command:
-    - python
-    - scanner.py
-    - http://backend:5000
+    ports:
+    - "5001:5001
+    
+    # Scanner가 생성한 검사 결과(JSON)를 Report 컨테이너와 공유하기 위한 볼륨
+    volumes:
+      - scanner-results:/app/results
 
     networks:
       - security-network
 
 
-  # 결과 분석 및 Dashboard(웹 대시보드 사용하지 않을 시 삭제)
+  # 결과 분석 및 Dashboard
   report:
     # report 폴더의 Dockerfile 사용
     build:
@@ -61,13 +60,45 @@ services:
 
     container_name: report-generator
 
-    # Dashboard 접속 포트
     ports:
-      - "8501:8501"
+    - "5002:5002"
 
-    # Scanner 완료 후 Report 실행
+
+    # Scanner가 생성한 검사 결과(JSON)를 동일한 경로에서 읽기 위한 공유 볼륨
+    volumes:
+      - scanner-results:/app/results
+
+    networks:
+      - security-network
+
+  # 사용자 UI 및 Scanner/Report 실행 제어 플랫폼
+  platform:
+
+    # Platform Dockerfile 사용
+    build:
+      context: ./Platform
+
+
+    container_name: security-platform
+
+
+    # 사용자 접속 포트
+    ports:
+      - "8080:8080"
+
+
+    # Scanner와 Report 결과 공유
+    volumes:
+      - scanner-results:/app/results
+      - ./Scanner:/app/scanner
+      - ./Report:/app/report
+
+
     depends_on:
+      - backend
       - scanner
+      - report
+
 
     networks:
       - security-network
@@ -104,8 +135,10 @@ services:
 
 # Docker Volume
 # 컨테이너를 삭제해도 DB 데이터는 유지됨
+# Scanner와 Report가 검사 결과를 공유하기 위한 볼륨
 volumes:
   mysql-data:
+  scanner-results:
 
 
 # Docker Network
