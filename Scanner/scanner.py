@@ -29,7 +29,18 @@ from checks import CHECK_REGISTRY
 from swagger_seed import load_seed_urls
 
 PAYLOADS_DIR = os.path.join(os.path.dirname(__file__), "payloads")
-RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
+
+# Platform이 job_id별 결과 디렉터리를 넘겨줄 수 있도록 RESULTS_DIR을 환경 변수로 오버라이드 가능하게 함.
+# 값이 없으면 기존처럼 Scanner 내부 results/ 디렉터리를 사용 (로컬 실행 시 하위 호환).
+DEFAULT_RESULTS_DIR = os.path.join(
+    os.path.dirname(__file__),
+    "results"
+)
+
+RESULTS_DIR = os.environ.get(
+    "RESULTS_DIR",
+    DEFAULT_RESULTS_DIR
+)
 
 
 def load_payloads(check_name: str) -> list[str]:
@@ -104,24 +115,38 @@ def run_scan(target_url: str, depth: int, check_names: list[str], swagger_source
 
             all_findings.extend(findings)
 
+    # ⚙️ 3주차: Report(report_generator.py)가 읽는 스키마에 맞춤
+    #   - scanned_at -> scan_date, findings -> vulnerabilities
+    #   - 각 항목의 check_name -> type / severity Capitalize 변환은
+    #     Finding.to_dict()(checks/base.py)에서 처리됨
     result = {
         "target": target_url,
-        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "scan_date": datetime.now(timezone.utc).isoformat(),
         "pages_crawled": len(pages),
         "checks_run": check_names,
-        "findings_count": len(all_findings),
-        "findings": [f.to_dict() for f in all_findings],
+        "vulnerabilities_count": len(all_findings),
+        "vulnerabilities": [f.to_dict() for f in all_findings],
     }
     return result
 
 
 def save_result(result: dict) -> str:
+    """
+    타임스탬프가 붙은 결과 파일(scan_<타임스탬프>.json)을 저장하고,
+    동시에 results/latest.json도 같은 내용으로 덮어써서
+    Report/통합 담당이 항상 같은 경로(latest.json)에서 최신 결과를 읽을 수 있게 한다.
+    """
     os.makedirs(RESULTS_DIR, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"scan_{timestamp}.json"
     filepath = os.path.join(RESULTS_DIR, filename)
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
+
+    latest_path = os.path.join(RESULTS_DIR, "latest.json")
+    with open(latest_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
     return filepath
 
 
@@ -132,8 +157,9 @@ def main():
     result = run_scan(args.url, args.depth, check_names, swagger_source=args.swagger)
     filepath = save_result(result)
 
-    print(f"[scanner] 스캔 완료. 발견된 이슈: {result['findings_count']}건")
+    print(f"[scanner] 스캔 완료. 발견된 이슈: {result['vulnerabilities_count']}건")
     print(f"[scanner] 결과 저장: {filepath}")
+    print(f"[scanner] 최신 결과: {os.path.join(RESULTS_DIR, 'latest.json')}")
 
 
 if __name__ == "__main__":

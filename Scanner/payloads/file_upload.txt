@@ -1,0 +1,12 @@
+# checks/file_upload.py가 실제로 업로드를 시도할 "위험한" 파일명 목록 (한 줄에 하나)
+# 확장자/파일명 검증이 없으면 이 중 하나라도 그대로 수락됨
+shell.php
+shell.php5
+shell.phtml
+shell.jsp
+shell.jspx
+shell.asp
+shell.aspx
+exploit.html
+evil.svg
+shell.php.jpg

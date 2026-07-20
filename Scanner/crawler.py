@@ -29,6 +29,9 @@ class FormInfo:
     action: str          # 제출 대상 URL (절대경로로 정규화됨)
     method: str          # GET / POST
     inputs: list[str] = field(default_factory=list)  # input name 목록
+    # input name -> type (예: "file", "text", "password"). <textarea>/<select>는 태그명을 그대로 사용.
+    # ⚙️ 3주차: checks/file_upload.py가 type="file" 필드를 찾는 데 사용.
+    input_types: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -69,11 +72,18 @@ class Crawler:
             action = form_tag.get("action") or page_url
             action = self._normalize(page_url, action) or page_url
             method = (form_tag.get("method") or "GET").upper()
-            inputs = [
-                inp.get("name") for inp in form_tag.find_all(["input", "textarea", "select"])
-                if inp.get("name")
-            ]
-            forms.append(FormInfo(action=action, method=method, inputs=inputs))
+
+            inputs = []
+            input_types = {}
+            for inp in form_tag.find_all(["input", "textarea", "select"]):
+                name = inp.get("name")
+                if not name:
+                    continue
+                inputs.append(name)
+                # <input type="file">처럼 실제 type 속성이 있으면 그 값을, 없으면 태그명을 사용
+                input_types[name] = (inp.get("type") or inp.name).lower()
+
+            forms.append(FormInfo(action=action, method=method, inputs=inputs, input_types=input_types))
         return forms
 
     def _extract_links(self, soup: BeautifulSoup, page_url: str) -> list[str]:

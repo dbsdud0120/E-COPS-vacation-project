@@ -1,0 +1,3 @@
+# 형식: username:password (한 줄, 실제 로그인 가능한 테스트 계정)
+# /signup으로 먼저 테스트 계정을 만든 뒤 값을 바꿔주세요. (idor.txt 계정 재사용 가능)
+testuser1:testpass1

@@ -1,0 +1,3 @@
+# checks/jwt_verification.py는 응답(쿠키/바디/헤더)에서 JWT를 직접 찾아서 검사하기 때문에
+# 별도 payload 파일이 필요 없습니다.
+# 이 파일은 scanner.py의 "payload 파일 없음" 경고를 없애기 위한 빈 placeholder입니다.
