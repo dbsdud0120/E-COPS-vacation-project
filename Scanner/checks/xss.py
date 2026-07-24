@@ -64,18 +64,36 @@ def run(session, page, payloads: list[str]) -> list[Finding]:
                 ))
                 break
 
-    # 2) form input 검사 (틀만 작성)
-    # TODO(다음 주차): 실제 POST 전송 + 응답 페이지에서 반사 여부 확인
+    # 2) form input 검사 (POST 폼)
+    # 필드 하나씩 payload를 넣고 나머지 필수 필드는 더미 값으로 채워서 실제로 전송한 뒤,
+    # "그 요청의 응답 자체"에 payload가 이스케이프 없이 그대로 반사되는지 확인한다.
+    # (저장 후 다른 페이지에서 나타나는 저장형 XSS는 stored_xss.py가 별도로 담당)
     for form in page.forms:
-        for input_name in form.inputs:
-            findings.append(make_finding(
-                check_name=CHECK_NAME,
-                url=form.action,
-                parameter=input_name,
-                payload=None,
-                severity=Severity.INFO,
-                evidence="form 필드 발견 (실제 XSS 전송 로직은 미구현)",
-                description="다음 주차에 form 기반 XSS 페이로드 전송 로직을 추가할 예정입니다.",
-            ))
+        if form.method != "POST":
+            continue
+        if not form.inputs:
+            continue
+
+        for target_field in form.inputs:
+            for payload in payloads:
+                data = {name: "test" for name in form.inputs}
+                data[target_field] = payload
+
+                try:
+                    resp = session.post(form.action, data=data, timeout=5)
+                except Exception:
+                    continue
+
+                if _is_reflected_unescaped(resp.text, payload):
+                    findings.append(make_finding(
+                        check_name=CHECK_NAME,
+                        url=form.action,
+                        parameter=target_field,
+                        payload=payload,
+                        severity=Severity.MEDIUM,
+                        evidence="입력한 payload가 POST 응답에 이스케이프 없이 그대로 반사됨",
+                        description="입력값이 HTML에 그대로 출력되어 반사형 XSS로 이어질 가능성이 있습니다.",
+                    ))
+                    break  # 이 필드는 이미 취약점 확인, 다음 payload는 생략
 
     return findings

@@ -42,8 +42,8 @@ services:
 
 
     ports:
-    - "5001:5001
-    
+      - "5001:5001"
+
     # Scanner가 생성한 검사 결과(JSON)를 Report 컨테이너와 공유하기 위한 볼륨
     volumes:
       - scanner-results:/app/results

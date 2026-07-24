@@ -15,7 +15,10 @@ def scan():
 
     url = data["url"]
 
-    job_id = str(uuid.uuid4())
+    # Platform이 job_id를 함께 넘겨주면 그 값을 그대로 사용해서
+    # Platform/Scanner/Report가 같은 폴더를 바라보게 한다.
+    # job_id가 없으면(=Scanner를 단독으로 테스트할 때) 새로 발급한다.
+    job_id = data.get("job_id") or str(uuid.uuid4())
 
     result_dir = os.path.join(
         RESULTS_DIR,
