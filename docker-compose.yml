@@ -89,14 +89,14 @@ services:
     expose:
       - "8080"
 
-    nginx:
-      image: nginx:latest
-      ports:
-        - "80:80" # 외부의 80번 포트(HTTP) 요청을 Nginx 컨테이너의 80번으로 받음
-      volumes:
-        - ./nginx.conf:/etc/nginx/nginx.conf:ro # 작성한 설정 파일을 컨테이너에 덮어씌움
-      depends_on:
-        - platform # platform 컨테이너가 먼저 실행된 후 Nginx가 실행되도록 설정
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80" # 외부의 80번 포트(HTTP) 요청을 Nginx 컨테이너의 80번으로 받음
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro # 작성한 설정 파일을 컨테이너에 덮어씌움
+    depends_on:
+      - platform # platform 컨테이너가 먼저 실행된 후 Nginx가 실행되도록 설정
 
 
     # Scanner와 Report 결과 공유
