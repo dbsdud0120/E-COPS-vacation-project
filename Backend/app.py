@@ -1,4 +1,12 @@
-from flask import Flask, render_template, request, jsonify, session
+from flask import (
+    Flask,
+    render_template,
+    request,
+    jsonify,
+    session,
+    send_from_directory,
+)
+from flask_swagger_ui import get_swaggerui_blueprint
 import os
 import re
 import datetime
@@ -9,6 +17,19 @@ from upload import upload_bp
 
 
 app = Flask(__name__)
+
+SWAGGER_URL = "/swagger"
+API_URL = "/swagger.yaml"
+
+swaggerui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL,
+    API_URL,
+    config={
+        "app_name": "EVulnScanner API"
+    }
+)
+
+app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 app.register_blueprint(upload_bp)
 
 # 세션 암호화 키
@@ -41,6 +62,10 @@ def home():
 
     return render_template("index.html")
 
+@app.route("/swagger.yaml")
+def swagger_yaml():
+    return send_from_directory(app.root_path, "swagger.yaml")
+
 
 
 # 회원가입
@@ -60,7 +85,7 @@ def signup():
         if len(username) < 4 or len(username) > 20:
             return "아이디는 4~20자만 가능합니다."
 
-        # 비밀번호 길이 제한
+        # 비밀번호 길이 제한햣
         if len(password) < 8 or len(password) > 20:
             return "비밀번호는 8~20자만 가능합니다."
 
@@ -175,7 +200,9 @@ def login():
         # 로그인 성공
         if user and check_password_hash(user[2], password):
 
-            session["username"] = username
+            # 사용자 정보 세션 저장
+            session["user_id"] = user[0]
+            session["username"] = user[1]
 
             # 로그인 성공 시 실패 횟수 초기화
             login_attempts.pop(username, None)
