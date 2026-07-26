@@ -7,8 +7,8 @@ services:
     build:
       context: ./Backend
     container_name: vulnerable-backend
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     environment:
       FLASK_ENV: development
       MYSQL_HOST: db
@@ -25,8 +25,8 @@ services:
     build:
       context: ./Scanner
     container_name: security-scanner
-    ports:
-      - "5001:5001"
+    expose:
+      - "5001"
     volumes:
       - scanner-results:/app/results
     networks:
@@ -37,8 +37,8 @@ services:
     build:
       context: ./Report
     container_name: report-generator
-    ports:
-      - "5002:5002"
+    expose:
+      - "5002"
     volumes:
       - scanner-results:/app/results
     networks:
@@ -85,8 +85,8 @@ services:
       MYSQL_DATABASE: security_db
       MYSQL_USER: security
       MYSQL_PASSWORD: security123
-    ports:
-      - "3306:3306"
+    expose:
+      - "3306"
     volumes:
       - mysql-data:/var/lib/mysql
     networks:
