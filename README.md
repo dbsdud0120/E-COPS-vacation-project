@@ -30,12 +30,28 @@ Security Scanner Platform은 취약한 웹 애플리케이션과 REST API를 자
 ## Repository 구조
 
 ```
-security-scanner-platform/
-├── Backend/
-├── Scanner/
-├── Report/
-├── docker-compose.yml
-└── README.md
+E-COPS-vacation-project-main/
+├── docker-compose.yml          # 서비스 컨테이너 오케스트레이션 및 포트/Expose 설정
+├── nginx.conf                  # Nginx 프록시 설정
+├── Backend/                    # 진단 대상 웹 앱
+│   ├── app.py                  # Flask 메인 서버
+│   ├── init_db.py              # 데이터베이스 초기화
+│   ├── upload.py               # 파일 업로드 핸들러
+│   ├── swagger.yaml            # API 문서
+│   └── templates/              # HTML 템플릿
+├── Scanner/                    # 취약점 스캐너 엔진
+│   ├── scanner.py              # 메인 스캐너 로직
+│   ├── crawler.py              # 웹 크롤러
+│   ├── checks/                 # 취약점별 진단 모듈
+│   └── payloads/               # 취약점 진단용 페이로드
+├── Report/                     # 리포트 및 대시보드 생성기
+│   ├── report_generator.py     # 종합 리포트 생성기
+│   ├── dashboard_generator.py  # 대시보드 HTML 생성기
+│   ├── security_policy_checker.py # 보안 정책 점검기
+│   └── mitigation_guide.md     # 취약점 완화/조치 가이드
+└── Platform/                   # 플랫폼 프론트엔드/컨트롤러 (외부 노출 접점)
+    ├── app.py                  # 플랫폼 백엔드
+    └── templates/              # 대시보드 & 결과 뷰
 ```
 
 ---
