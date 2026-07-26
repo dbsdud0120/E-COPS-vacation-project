@@ -33,10 +33,16 @@ app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 app.register_blueprint(upload_bp)
 
 # 세션 암호화 키
-app.secret_key = os.getenv("SECRET_KEY", "evulnscanner-secret-key")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable is not set.")
+
+app.secret_key = SECRET_KEY
 
 # JWT 설정
-JWT_SECRET = os.getenv("JWT_SECRET", "evulnscanner-jwt-secret")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable is not set.")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 30
 
