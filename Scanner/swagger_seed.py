@@ -148,6 +148,7 @@ def _load_spec(source: str) -> dict | None:
     try:
         if source.startswith("http://") or source.startswith("https://"):
             resp = requests.get(source, timeout=5)
+            resp.raise_for_status()
             text = resp.text
         else:
             with open(source, "r", encoding="utf-8") as f:
