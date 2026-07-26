@@ -22,6 +22,7 @@ services:
       MYSQL_DATABASE: security_db
       MYSQL_USER: security
       MYSQL_PASSWORD: security123
+      SECRET_KEY: evulnscanner-secret-key
 
     # DB가 먼저 실행된 후 backend 실행
     depends_on:

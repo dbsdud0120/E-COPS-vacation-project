@@ -33,7 +33,7 @@ app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 app.register_blueprint(upload_bp)
 
 # 세션 암호화 키
-app.secret_key = "evulnscanner-secret-key"
+app.secret_key = os.getenv("SECRET_KEY", "evulnscanner-secret-key")
 
 # JWT 설정
 JWT_SECRET = os.getenv("JWT_SECRET", "evulnscanner-jwt-secret")
