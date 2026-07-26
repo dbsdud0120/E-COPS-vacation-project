@@ -87,20 +87,36 @@ def run(session, page, payloads: list[str]) -> list[Finding]:
                 break  # 파라미터당 1개만 기록 (payload 여러 개 반복 방지)
 
     # 2) form input 검사 (POST 폼)
-    # TODO(다음 주차): 실제 POST 요청 전송 + CSRF 토큰 처리 로직 추가
+    # 필드 하나씩 payload를 넣고 나머지 필수 필드는 더미 값으로 채워서 실제로 전송한다.
+    # (stored_xss.py와 동일한 패턴: 한 필드당 하나라도 에러 시그니처가 잡히면
+    #  다음 payload는 건너뛰고 다음 필드로 넘어간다.)
     for form in page.forms:
         if form.method != "POST":
             continue
-        for input_name in form.inputs:
-            # 지금은 틀만 만들고, 실제 전송은 취약 서버 준비 후 구현
-            findings.append(make_finding(
-                check_name=CHECK_NAME,
-                url=form.action,
-                parameter=input_name,
-                payload=None,
-                severity=Severity.INFO,
-                evidence="POST form 필드 발견 (실제 전송 로직은 미구현)",
-                description="다음 주차에 POST 기반 SQLi 페이로드 전송 로직을 추가할 예정입니다.",
-            ))
+        if not form.inputs:
+            continue
+
+        for target_field in form.inputs:
+            for payload in payloads:
+                data = {name: "test" for name in form.inputs}
+                data[target_field] = payload
+
+                try:
+                    resp = session.post(form.action, data=data, timeout=5)
+                except Exception:
+                    continue
+
+                matched = _response_has_sql_error(resp.text)
+                if matched:
+                    findings.append(make_finding(
+                        check_name=CHECK_NAME,
+                        url=form.action,
+                        parameter=target_field,
+                        payload=payload,
+                        severity=Severity.HIGH,
+                        evidence=f"POST 요청 응답에서 SQL 에러 시그니처 발견: '{matched}'",
+                        description="입력값이 SQL 쿼리에 그대로 삽입되어 DB 에러가 노출될 가능성이 있습니다.",
+                    ))
+                    break  # 이 필드는 이미 취약점 확인, 다음 payload는 생략
 
     return findings

@@ -24,9 +24,10 @@ from datetime import datetime, timezone
 
 import requests
 
-from crawler import Crawler
+from crawler import Crawler, PageInfo, FormInfo
 from checks import CHECK_REGISTRY
-from swagger_seed import load_seed_urls
+from swagger_seed import load_seed_urls, load_post_form_seeds
+from auth import login as auth_login
 
 PAYLOADS_DIR = os.path.join(os.path.dirname(__file__), "payloads")
 
@@ -90,7 +91,72 @@ def run_scan(target_url: str, depth: int, check_names: list[str], swagger_source
                 added += 1
         print(f"[scanner] swagger 기반 추가 시드: {len(seed_urls)}개 중 신규 {added}개 추가 (크롤링으로는 못 찾는 라우트 포함)")
 
+        # POST 전용 라우트(/vuln/login, /api/token 등)는 GET으로 방문할 방법이 없어서
+        # 위 seed_urls(=GET 가능한 경로만)에는 포함되지 않는다. 실제 HTTP 요청 없이,
+        # swagger에 문서화된 필드 이름으로 "가상 폼 페이지"를 만들어 pages에 추가한다.
+        # 이렇게 해두면 sql_injection.py/xss.py 등 "page.forms의 POST 폼을 테스트하는"
+        # 기존 check들이 별도 수정 없이 이 라우트들도 자동으로 테스트하게 된다.
+        post_seeds = load_post_form_seeds(swagger_source, target_url)
+        for seed in post_seeds:
+            form = FormInfo(
+                action=seed["url"],
+                method="POST",
+                inputs=seed["inputs"],
+                input_types={name: "text" for name in seed["inputs"]},
+            )
+            pages.append(PageInfo(
+                url=seed["url"],
+                status_code=200,  # 실제 요청은 안 보냈으므로 임의값(성공으로 간주)
+                forms=[form],
+            ))
+        if post_seeds:
+            print(f"[scanner] swagger 기반 POST 전용 라우트 {len(post_seeds)}개를 가상 폼으로 추가")
+
     session = requests.Session()
+
+    # 여러 check(특히 stored_xss)가 로그인 상태에서만 도달 가능한 기능(글 작성 등)을
+    # 테스트해야 하므로, payloads/broken_authentication.txt에 있는 첫 번째 테스트
+    # 계정으로 미리 로그인해서 세션 쿠키를 확보해둔다.
+    # 로그인에 실패해도 스캔 자체는 계속 진행한다 (로그인 필요 없는 check는 정상 동작).
+    auth_accounts = load_payloads("broken_authentication")
+    for line in auth_accounts:
+        line = line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        auth_username, _, auth_password = line.partition(":")
+        logged_in = auth_login(target_url, auth_username.strip(), auth_password.strip())
+        if logged_in is not None:
+            session = logged_in
+            print(f"[scanner] '{auth_username.strip()}' 계정으로 로그인 성공 (로그인 필요한 페이지도 검사에 포함됨)")
+
+            # /api/token은 GET이 없는 POST 전용 라우트라 크롤러/swagger 시드로는
+            # 방문할 방법이 없고, jwt_verification.py도 스스로 토큰을 발급받는 로직은
+            # 없다(발견한 토큰을 "재사용"하는 로직만 있음). 그래서 여기서 미리 같은
+            # 계정으로 토큰을 발급받아, jwt_verification.py가 페이지 간에 토큰을 공유하도록
+            # 설계해둔 session._jwt_scan_state에 직접 넣어준다.
+            try:
+                token_resp = session.post(
+                    target_url.rstrip("/") + "/api/token",
+                    data={
+                        "username": auth_username.strip(),
+                        "password": auth_password.strip(),
+                    },
+                    timeout=5,
+                )
+                token = token_resp.json().get("token")
+            except Exception:
+                token = None
+
+            if token:
+                state = getattr(session, "_jwt_scan_state", None)
+                if state is None:
+                    state = {"tokens": set(), "exp_checked": set()}
+                    session._jwt_scan_state = state
+                state["tokens"].add(token)
+                print("[scanner] /api/token에서 JWT 토큰 확보 (JWT 검증 검사에서 재사용됨)")
+        else:
+            print(f"[scanner] '{auth_username.strip()}' 계정 로그인 실패 - 비로그인 상태로 스캔을 계속합니다")
+        break  # 첫 번째 계정만 사용
 
     # check별 payload는 한 번만 로드해서 재사용
     payloads_by_check = {name: load_payloads(name) for name in check_names}

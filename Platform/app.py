@@ -50,7 +50,8 @@ def run_scan_job(job_id, url):
         scan_response = requests.post(
             "http://scanner:5001/scan",
             json={
-                "url": url
+                "url": url,
+                "job_id": job_id
             }
         )
 
@@ -71,16 +72,19 @@ def run_scan_job(job_id, url):
             }
         )
 
-        # 생성된 Report 경로 저장
-        scan_jobs[job_id]["html"] = json_path.replace(
-            "result.json",
-            "report.html"
-        )
+        report_result = report_response.json()
 
-        scan_jobs[job_id]["pdf"] = json_path.replace(
-            "result.json",
-            "report.pdf"
-        )
+        if report_response.status_code != 200 or "results" not in report_result:
+            raise RuntimeError(
+                f"report generation failed: {report_result}"
+            )
+
+        # 생성된 Report 경로는 Report 서버가 실제로 만든 경로를 그대로 사용한다.
+        # (기존에는 json_path 문자열에 없는 "result.json"을 replace하려고 해서
+        #  항상 원래 json_path가 그대로 남아있는 버그가 있었음)
+        report_paths = report_result["results"]["report"]
+        scan_jobs[job_id]["html"] = report_paths["html"]
+        scan_jobs[job_id]["pdf"] = report_paths["pdf"]
 
 
 

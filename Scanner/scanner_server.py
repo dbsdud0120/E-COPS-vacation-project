@@ -11,11 +11,22 @@ RESULTS_DIR = "/app/results"
 @app.route("/scan", methods=["POST"])
 def scan():
 
-    data = request.get_json()
+    data = request.get_json(silent=True)
+
+    if not data or "url" not in data:
+        return jsonify({"error": "요청 본문에 'url' 필드가 필요합니다."}), 400
 
     url = data["url"]
 
-    job_id = str(uuid.uuid4())
+    if not isinstance(url, str) or not url.strip():
+        return jsonify({"error": "'url'은 비어있지 않은 문자열이어야 합니다."}), 400
+
+    url = url.strip()
+
+    # Platform이 job_id를 함께 넘겨주면 그 값을 그대로 사용해서
+    # Platform/Scanner/Report가 같은 폴더를 바라보게 한다.
+    # job_id가 없으면(=Scanner를 단독으로 테스트할 때) 새로 발급한다.
+    job_id = data.get("job_id") or str(uuid.uuid4())
 
     result_dir = os.path.join(
         RESULTS_DIR,
