@@ -13,18 +13,10 @@ conn = pymysql.connect(
 cursor = conn.cursor()
 
 # ==========================
-# 기존 테이블 삭제
-# (개발/발표용 초기화)
-# ==========================
-cursor.execute("DROP TABLE IF EXISTS files")
-cursor.execute("DROP TABLE IF EXISTS posts")
-cursor.execute("DROP TABLE IF EXISTS users")
-
-# ==========================
 # users
 # ==========================
 cursor.execute("""
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL
@@ -35,7 +27,7 @@ CREATE TABLE users (
 # posts
 # ==========================
 cursor.execute("""
-CREATE TABLE posts (
+CREATE TABLE IF NOT EXISTS posts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
@@ -47,7 +39,7 @@ CREATE TABLE posts (
 # files
 # ==========================
 cursor.execute("""
-CREATE TABLE files (
+CREATE TABLE IF NOT EXISTS files (
     id INT AUTO_INCREMENT PRIMARY KEY,
     filename VARCHAR(255) NOT NULL,
     saved_name VARCHAR(255) NOT NULL,
@@ -71,7 +63,7 @@ test_users = [
 for username, password in test_users:
     cursor.execute(
         """
-        INSERT INTO users(username, password)
+        INSERT IGNORE INTO users(username, password)
         VALUES(%s, %s)
         """,
         (username, generate_password_hash(password))
@@ -89,11 +81,21 @@ test_posts = [
 for title, content, writer in test_posts:
     cursor.execute(
         """
-        INSERT INTO posts(title, content, writer)
-        VALUES(%s, %s, %s)
+        SELECT COUNT(*)
+        FROM posts
+        WHERE title = %s AND writer = %s
         """,
-        (title, content, writer)
+        (title, writer)
     )
+
+    if cursor.fetchone()[0] == 0:
+        cursor.execute(
+            """
+            INSERT INTO posts(title, content, writer)
+            VALUES(%s, %s, %s)
+            """,
+            (title, content, writer)
+        )
 
 conn.commit()
 
