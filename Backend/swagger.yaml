@@ -271,6 +271,15 @@ paths:
         '200':
           description: 로그인 결과
 
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+
   /vuln/broken-auth:
     post:
       summary: Broken Authentication
@@ -315,13 +324,29 @@ paths:
         '200':
           description: JWT 발급 성공
 
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIs...
+
         '401':
           description: 로그인 실패
 
   /vuln/profile:
     get:
       summary: JWT Validation Missing
-      description: JWT 서명을 검증하지 않는 취약 API
+
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer <JWT_TOKEN>
+          schema:
+            type: string
 
       responses:
         '200':
@@ -458,6 +483,9 @@ paths:
   /vuln/download:
     get:
       summary: Directory Traversal 테스트
+      description: |
+        file 파라미터를 통해 파일을 다운로드합니다.
+        ../ 등을 이용한 Directory Traversal 테스트용 API입니다.
 
       parameters:
         - name: file
