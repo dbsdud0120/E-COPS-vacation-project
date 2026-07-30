@@ -52,7 +52,9 @@ CREATE TABLE IF NOT EXISTS posts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
-    writer VARCHAR(50) NOT NULL
+    writer VARCHAR(50) NOT NULL,
+    user_id INT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
 )
 """)
 
@@ -93,6 +95,11 @@ for username, password in test_users:
 # ==========================
 # 테스트 게시글
 # ==========================
+
+# 사용자 id 조회
+cursor.execute("SELECT id, username FROM users")
+user_map = {username: user_id for user_id, username in cursor.fetchall()}
+
 test_posts = [
     ("공지사항", "EVulnScanner 테스트용 공지입니다.", "admin"),
     ("첫 번째 게시글", "게시판 기능 테스트용 게시글입니다.", "admin"),
@@ -100,22 +107,29 @@ test_posts = [
 ]
 
 for title, content, writer in test_posts:
+
     cursor.execute(
         """
         SELECT COUNT(*)
         FROM posts
-        WHERE title = %s AND writer = %s
+        WHERE title=%s AND writer=%s
         """,
         (title, writer)
     )
 
     if cursor.fetchone()[0] == 0:
+
         cursor.execute(
             """
-            INSERT INTO posts(title, content, writer)
-            VALUES(%s, %s, %s)
+            INSERT INTO posts(title, content, writer, user_id)
+            VALUES(%s, %s, %s, %s)
             """,
-            (title, content, writer)
+            (
+                title,
+                content,
+                writer,
+                user_map[writer]
+            )
         )
 
 conn.commit()

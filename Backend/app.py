@@ -450,6 +450,7 @@ def posts():
 
         # 작성자는 로그인한 사용자로 고정
         writer = session["username"]
+        user_id = session["user_id"]
 
 
         # 입력값 검증
@@ -469,14 +470,18 @@ def posts():
         cursor.execute(
 
             """
-            INSERT INTO posts(title,content,writer)
-            VALUES(%s,%s,%s)
+            INSERT INTO posts(title, content, writer, user_id)
+            VALUES(%s, %s, %s, %s)
             """,
 
-            (title,content,writer)
+            (
+                title,
+                content,
+                writer,
+                user_id
+            )
 
         )
-
 
         conn.commit()
 
@@ -529,10 +534,11 @@ def posts():
 
         posts=posts,
 
-        keyword=keyword
+        keyword=keyword,
+
+        current_user_id=session.get("user_id")
 
     )
-
 # ==========================================
 # 의도적 취약점 예제: Stored XSS
 # 게시글 내용을 escaping 없이 출력
@@ -557,7 +563,8 @@ def vuln_posts():
 
     return render_template(
         "vuln_posts.html",
-        posts=posts
+        posts=posts,
+        current_user_id=session.get("user_id")
     )
 
 
@@ -682,7 +689,8 @@ def edit_post(post_id):
     # 게시글 조회
     cursor.execute(
         """
-        SELECT * FROM posts
+        SELECT id, title, content, writer, user_id
+        FROM posts
         WHERE id=%s
         """,
         (post_id,)
@@ -700,7 +708,8 @@ def edit_post(post_id):
         return "로그인이 필요합니다."
 
     # 작성자 확인
-    if post[3] != session["username"]:
+    # 자신의 글만 수정 가능
+    if post[4] != session["user_id"]:
         conn.close()
         return "작성자만 수정할 수 있습니다."
 
@@ -760,7 +769,8 @@ def delete_post(post_id):
     # 게시글 조회
     cursor.execute(
         """
-        SELECT * FROM posts
+        SELECT id, title, content, writer, user_id
+        FROM posts
         WHERE id=%s
         """,
         (post_id,)
@@ -778,7 +788,7 @@ def delete_post(post_id):
         return "로그인이 필요합니다."
 
     # 작성자 확인
-    if post[3] != session["username"]:
+    if post[4] != session["user_id"]:
         conn.close()
         return "작성자만 삭제할 수 있습니다."
 
@@ -1001,5 +1011,6 @@ def vuln_download():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
     
