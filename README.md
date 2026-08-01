@@ -163,6 +163,7 @@ docker-compose up -d --build
 
 # 실행 상태 확인
 docker-compose ps
+```
 
 ---
 
