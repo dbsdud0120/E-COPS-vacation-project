@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import subprocess
 import os
+import sys
 
 app = Flask(__name__)
 
@@ -24,6 +25,11 @@ POLICY_REPORT_GENERATOR = os.path.join(
     "policy_report_generator.py"
 )
 
+SECURITY_POLICY_CHECKER = os.path.join(
+    BASE_DIR,
+    "security_policy_checker.py"
+)
+
 
 @app.route("/report", methods=["POST"])
 def report():
@@ -40,6 +46,41 @@ def report():
 
 
     try:
+        # ==========================================================
+        # [사전 검증] json_path 유효성 먼저 체크
+        # ==========================================================
+        if "json_path" in data:
+            json_path = data["json_path"]
+            if not os.path.exists(json_path):
+                return jsonify({
+                    "error": "scanner json not found",
+                    "path": json_path
+                }), 404
+        
+        # ==========================================================
+        # 0. 정책 점검(Checker) 실행 및 policy_path 자동 생성
+        # ==========================================================
+        # Platform에서 "url"을 같이 전달해 주면 checker를 먼저 실행합니다.
+        if "url" in data and "json_path" in data:
+            target_url = data["url"]
+            target_dir = os.path.dirname(data["json_path"])
+            
+            # checker 결과 JSON 경로 정의
+            generated_policy_path = os.path.join(target_dir, "policy_result.json")
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    SECURITY_POLICY_CHECKER,
+                    target_url,
+                    "--output",
+                    generated_policy_path
+                ],
+                check=True
+            )
+
+            # 생성된 policy_path를 data에 할당하여 기존 '3. 정책 점검 리포트' 로직을 자연스럽게 타도록 함
+            data["policy_path"] = generated_policy_path
 
         # ==========================
         # 1. 취약점 상세 리포트
@@ -49,14 +90,6 @@ def report():
 
             json_path = data["json_path"]
 
-
-            if not os.path.exists(json_path):
-                return jsonify({
-                    "error": "scanner json not found",
-                    "path": json_path
-                }), 404
-
-
             report_prefix = os.path.join(
                 os.path.dirname(json_path),
                 "report"
@@ -65,7 +98,7 @@ def report():
 
             subprocess.run(
                 [
-                    "python",
+                    sys.executable,
                     REPORT_GENERATOR,
                     json_path,
                     report_prefix
@@ -93,7 +126,7 @@ def report():
 
             subprocess.run(
                 [
-                    "python",
+                    sys.executable,
                     DASHBOARD_GENERATOR,
                     json_path,
                     dashboard_prefix
@@ -133,7 +166,7 @@ def report():
 
             subprocess.run(
                 [
-                    "python",
+                    sys.executable,
                     POLICY_REPORT_GENERATOR,
                     policy_path,
                     policy_prefix
