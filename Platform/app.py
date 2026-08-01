@@ -256,6 +256,22 @@ def download_dashboard(job_id):
         as_attachment=True
     )
 
+# 보안 정책 리포트(Policy Report) HTML 다운로드 및 조회
+@app.route("/download/policy/<job_id>")
+def download_policy(job_id):
+    path = os.path.join(
+        RESULTS_DIR,
+        job_id,
+        "policy_report.html"
+    )
+
+    if not os.path.exists(path):
+        return "Policy Report HTML not found", 404
+
+    return send_file(
+        path,
+        as_attachment=True
+    )
 
 
 if __name__ == "__main__":
