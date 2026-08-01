@@ -50,11 +50,10 @@
     <h1 id="status-title">확인 중...</h1>
     <p id="status-desc">스캔 상태를 확인하고 있습니다.</p>
     
-    <!-- 4가지 결과물 링크 영역 -->
+    <!-- 3가지 결과물 링크 영역 -->
     <div id="download-links" class="link-group" style="display:none;">
-      <!-- 새로 추가된 대시보드 & 정책 점검 리포트 -->
+      <!-- 새로 추가된 대시보드 -->
       <a class="download-btn dashboard" href="/download/dashboard/{{ job_id }}" target="_blank">📊 종합 대시보드 (Dashboard)</a>
-      <a class="download-btn policy" href="/download/policy/{{ job_id }}" target="_blank">🛡️ 보안 정책 점검 리포트</a>
       
       <!-- 기존 취약점 상세 리포트 -->
       <a class="download-btn" href="/download/html/{{ job_id }}" target="_blank">📄 취약점 상세 리포트 (HTML)</a>
