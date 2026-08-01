@@ -3,16 +3,67 @@
 <head>
 <meta charset="UTF-8">
 <title>Scan Result</title>
+<style>
+  body {
+    font-family: "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
+    margin: 40px;
+    background-color: #f8f9fa;
+    color: #333;
+  }
+  .container {
+    background: #fff;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    max-width: 520px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 24px;
+    margin-top: 0;
+  }
+  .link-group {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .download-btn {
+    display: block;
+    padding: 12px 16px;
+    background-color: #4A90E2;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 14px;
+    transition: background-color 0.2s ease, opacity 0.2s ease;
+  }
+  .download-btn.dashboard { background-color: #2E7D32; } /* 초록색 (대시보드) */
+  .download-btn.policy { background-color: #00838F; }    /* 청록색 (정책 리포트) */
+  .download-btn:hover { opacity: 0.9; }
+</style>
 </head>
 <body>
-  <h1 id="status-title">확인 중...</h1>
-  <p id="status-desc">스캔 상태를 확인하고 있습니다.</p>
-  <div id="download-links" style="display:none;">
-    <a href="/download/html/{{ job_id }}">HTML Report Download</a>
-    <br>
-    <a href="/download/pdf/{{ job_id }}">PDF Report Download</a>
+  <div class="container">
+    <h1 id="status-title">확인 중...</h1>
+    <p id="status-desc">스캔 상태를 확인하고 있습니다.</p>
+    
+    <!-- 4가지 결과물 링크 영역 -->
+    <div id="download-links" class="link-group" style="display:none;">
+      <!-- 새로 추가된 대시보드 & 정책 점검 리포트 -->
+      <a class="download-btn dashboard" href="/download/dashboard/{{ job_id }}" target="_blank">📊 종합 대시보드 (Dashboard)</a>
+      <a class="download-btn policy" href="/download/policy/{{ job_id }}" target="_blank">🛡️ 보안 정책 점검 리포트</a>
+      
+      <!-- 기존 취약점 상세 리포트 -->
+      <a class="download-btn" href="/download/html/{{ job_id }}" target="_blank">📄 취약점 상세 리포트 (HTML)</a>
+      <a class="download-btn" href="/download/pdf/{{ job_id }}">📑 취약점 상세 리포트 (PDF)</a>
+    </div>
+    
+    <p id="error-text" style="color:red; font-weight:bold;"></p>
   </div>
-  <p id="error-text" style="color:red;"></p>
+
   <script>
     const jobId = "{{ job_id }}";
     const titleEl = document.getElementById("status-title");
@@ -20,20 +71,23 @@
     const downloadEl = document.getElementById("download-links");
     const errorEl = document.getElementById("error-text");
     let intervalId = null;
+
     async function checkStatus() {
       try {
         const res = await fetch(`/status/${jobId}`);
         const data = await res.json();
+        
         if (data.error) {
           titleEl.textContent = "Job Not Found";
           descEl.textContent = data.error;
           clearInterval(intervalId);
           return;
         }
+        
         if (data.status === "Completed") {
           titleEl.textContent = "Scan Completed";
           descEl.textContent = "취약점 분석이 완료되었습니다.";
-          downloadEl.style.display = "block";
+          downloadEl.style.display = "flex";
           clearInterval(intervalId);
         } else if (data.status === "Error") {
           titleEl.textContent = "Scan Failed";
@@ -50,6 +104,7 @@
         clearInterval(intervalId);
       }
     }
+
     checkStatus();
     intervalId = setInterval(checkStatus, 2000);
   </script>
