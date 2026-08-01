@@ -96,13 +96,6 @@ def run_scan_job(job_id, url):
             dashboard_paths = report_result["results"]["dashboard"]
             scan_jobs[job_id]["dashboard_html"] = dashboard_paths["html"]
 
-        # ----------------------------------------------------
-        # [추가] 보안 정책 점검 리포트(policy_report) 경로 불러오기
-        # ----------------------------------------------------
-        if "policy_report" in report_result["results"]:
-            policy_paths = report_result["results"]["policy_report"]
-            scan_jobs[job_id]["policy_html"] = policy_paths["html"]
-
 
 
         scan_jobs[job_id]["status"] = "Completed"
@@ -255,22 +248,6 @@ def download_dashboard(job_id):
         as_attachment=True
     )
 
-# 보안 정책 점검(Policy Report) HTML 다운로드 및 조회
-@app.route("/download/policy/<job_id>")
-def download_policy(job_id):
-    path = os.path.join(
-        RESULTS_DIR,
-        job_id,
-        "policy_report.html"
-    )
-
-    if not os.path.exists(path):
-        return "Policy report not found", 404
-
-    return send_file(
-        path,
-        as_attachment=True
-    )
 
 
 if __name__ == "__main__":
