@@ -25,11 +25,6 @@ POLICY_REPORT_GENERATOR = os.path.join(
     "policy_report_generator.py"
 )
 
-SECURITY_POLICY_CHECKER = os.path.join(
-    BASE_DIR,
-    "security_policy_checker.py"
-)
-
 
 @app.route("/report", methods=["POST"])
 def report():
@@ -57,30 +52,6 @@ def report():
                     "path": json_path
                 }), 404
         
-        # ==========================================================
-        # 0. 정책 점검(Checker) 실행 및 policy_path 자동 생성
-        # ==========================================================
-        # Platform에서 "url"을 같이 전달해 주면 checker를 먼저 실행합니다.
-        if "url" in data and "json_path" in data:
-            target_url = data["url"]
-            target_dir = os.path.dirname(data["json_path"])
-            
-            # checker 결과 JSON 경로 정의
-            generated_policy_path = os.path.join(target_dir, "policy_result.json")
-
-            subprocess.run(
-                [
-                    sys.executable,
-                    SECURITY_POLICY_CHECKER,
-                    target_url,
-                    "--output",
-                    generated_policy_path
-                ],
-                check=True
-            )
-
-            # 생성된 policy_path를 data에 할당하여 기존 '3. 정책 점검 리포트' 로직을 자연스럽게 타도록 함
-            data["policy_path"] = generated_policy_path
 
         # ==========================
         # 1. 취약점 상세 리포트
@@ -175,7 +146,7 @@ def report():
             )
 
 
-            results["policy_report"] = {
+            results["policy"] = {
                 "html": policy_prefix + ".html"
             }
 
