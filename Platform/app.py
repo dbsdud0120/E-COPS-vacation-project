@@ -53,6 +53,7 @@ def run_scan_job(job_id, url):
                 "url": url,
                 "job_id": job_id
             }
+            timeout=300
         )
 
         scan_result = scan_response.json()
@@ -68,8 +69,10 @@ def run_scan_job(job_id, url):
         report_response = requests.post(
             "http://report:5002/report",
             json={
+                "url": url,
                 "json_path": json_path
             }
+            timeout=180
         )
 
         report_result = report_response.json()
