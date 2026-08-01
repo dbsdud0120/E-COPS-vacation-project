@@ -41,7 +41,7 @@
     transition: background-color 0.2s ease, opacity 0.2s ease;
   }
   .download-btn.dashboard { background-color: #2E7D32; } /* 초록색 (대시보드) */
-  .download-btn.policy { background-color: #00838F; }    /* 청록색 (정책 리포트) */
+  .download-btn.policy { background-color: #00838F; }    /* 청록색 (보안 정책 리포트) */
   .download-btn:hover { opacity: 0.9; }
 </style>
 </head>
@@ -50,17 +50,20 @@
     <h1 id="status-title">확인 중...</h1>
     <p id="status-desc">스캔 상태를 확인하고 있습니다.</p>
     
-    <!-- 3가지 결과물 링크 영역 -->
+    <!-- 결과물 링크 영역 -->
     <div id="download-links" class="link-group" style="display:none;">
-      <!-- 새로 추가된 대시보드 -->
-      <a class="download-btn dashboard" href="/download/dashboard/{{ job_id }}" target="_blank">📊 종합 대시보드 (Dashboard)</a>
+      <!-- 종합 대시보드 -->
+      <a id="btn-dashboard" class="download-btn dashboard" href="/download/dashboard/{{ job_id }}" target="_blank" style="display:none;">📊 종합 대시보드 (Dashboard)</a>
       
-      <!-- 기존 취약점 상세 리포트 -->
-      <a class="download-btn" href="/download/html/{{ job_id }}" target="_blank">📄 취약점 상세 리포트 (HTML)</a>
-      <a class="download-btn" href="/download/pdf/{{ job_id }}">📑 취약점 상세 리포트 (PDF)</a>
+      <!-- 보안 정책 점검 리포트 (추가됨) -->
+      <a id="btn-policy" class="download-btn policy" href="/download/policy/{{ job_id }}" target="_blank" style="display:none;">🛡️ 보안 정책 점검 리포트 (Policy)</a>
+
+      <!-- 취약점 상세 리포트 (HTML / PDF) -->
+      <a id="btn-html" class="download-btn" href="/download/html/{{ job_id }}" target="_blank">📄 취약점 상세 리포트 (HTML)</a>
+      <a id="btn-pdf" class="download-btn" href="/download/pdf/{{ job_id }}">📑 취약점 상세 리포트 (PDF)</a>
     </div>
     
-    <p id="error-text" style="color:red; font-weight:bold;"></p>
+    <p id="error-text" style="color:red; font-weight:bold; margin-top:16px;"></p>
   </div>
 
   <script>
@@ -69,6 +72,10 @@
     const descEl = document.getElementById("status-desc");
     const downloadEl = document.getElementById("download-links");
     const errorEl = document.getElementById("error-text");
+    
+    const btnDashboard = document.getElementById("btn-dashboard");
+    const btnPolicy = document.getElementById("btn-policy");
+    
     let intervalId = null;
 
     async function checkStatus() {
@@ -85,7 +92,16 @@
         
         if (data.status === "Completed") {
           titleEl.textContent = "Scan Completed";
-          descEl.textContent = "취약점 분석이 완료되었습니다.";
+          descEl.textContent = "취약점 분석 및 정책 점검이 완료되었습니다.";
+          
+          // 데이터 유무에 맞춰 버튼 활성화
+          if (data.dashboard_html) {
+            btnDashboard.style.display = "block";
+          }
+          if (data.policy_html) {
+            btnPolicy.style.display = "block";
+          }
+
           downloadEl.style.display = "flex";
           clearInterval(intervalId);
         } else if (data.status === "Error") {
