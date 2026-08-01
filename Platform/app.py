@@ -64,13 +64,15 @@ def run_scan_job(job_id, url):
         # Report 실행 상태
         scan_jobs[job_id]["status"] = "Generating Report"
 
-        
+        policy_json_path = os.path.join(result_dir, "policy_result.json")
+
         
         report_response = requests.post(
             "http://report:5002/report",
             json={
                 "url": url,
-                "json_path": json_path
+                "json_path": json_path,
+                "policy_path": policy_json_path
             },
             timeout=180
         )
@@ -96,6 +98,12 @@ def run_scan_job(job_id, url):
             dashboard_paths = report_result["results"]["dashboard"]
             scan_jobs[job_id]["dashboard_html"] = dashboard_paths["html"]
 
+        # ----------------------------------------------------
+        # [추가] 보안 정책 리포트(policy) 경로 불러오기
+        # ----------------------------------------------------
+        if "policy" in report_result["results"]:
+            policy_paths = report_result["results"]["policy"]
+            scan_jobs[job_id]["policy_html"] = policy_paths["html"]
 
 
         scan_jobs[job_id]["status"] = "Completed"
