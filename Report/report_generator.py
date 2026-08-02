@@ -286,8 +286,9 @@ HTML_TEMPLATE = """
 <meta charset="UTF-8">
 <title>{{ report_title }}</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
   body {
-    font-family: "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
+    font-family: "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
     background: #F5F6FA;
     color: #1F2430;
     margin: 0;
