@@ -41,13 +41,13 @@ SIGNATURES = [
 # 응답 본문에 에러는 없지만, "성공/실패" 문구(또는 JSON success 필드)만으로
 # 결과를 알려주는 엔드포인트(예: /vuln/login)를 위한 판별 키워드.
 # ⚠️ 대상 서비스마다 문구가 다를 수 있어, 새 서비스에 적용할 땐 이 목록을 보강해야 함.
-SUCCESS_INDICATORS = ["로그인 성공", '"success": true', '"success":true', "success\": true"]
+SUCCESS_INDICATORS = ["로그인 성공", '"success": true', '"success":true', '"success": true']
 FAILURE_INDICATORS = [
     "로그인 실패",
     "아이디 또는 비밀번호가 올바르지 않습니다",
     '"success": false',
     '"success":false',
-    "success\": false",
+    '"success": false',
 ]
 
 # baseline 요청에 사용할, 어떤 계정과도 일치하지 않을 더미 값
