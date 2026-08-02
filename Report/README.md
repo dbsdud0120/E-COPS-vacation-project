@@ -126,5 +126,5 @@ Scanner가 생성하는 JSON은 아래 형식을 따릅니다 (Scanner 3주차 P
 - Platform의 `/report` 요청에 `policy_path`를 자동으로 넘겨주는 흐름 정립 (현재는 정책 점검이 수동 트리거만 가능 — 통합담당과 협의 필요)
 - `severity_guide.md`와 코드(`SEVERITY_ORDER`)가 항상 동기화되도록 문서 관리
 ## 출력
-- HTML 리포트: 다크 테마, 심각도별 색상 배지, 요약 카운트 포함
+- HTML 리포트: 화이트톤 테마, 심각도별 색상 배지, 요약 카운트 포함
 - PDF 리포트: 동일한 내용을 WeasyPrint로 PDF 변환
