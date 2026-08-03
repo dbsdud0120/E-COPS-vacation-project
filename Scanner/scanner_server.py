@@ -1,11 +1,25 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
+from flask_swagger_ui import get_swaggerui_blueprint
 import subprocess
 import uuid
 import os
+import sys
 
 app = Flask(__name__)
 
 RESULTS_DIR = "/app/results"
+
+SWAGGER_URL = "/docs"
+API_URL = "/swagger.yaml"
+
+swaggerui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL,
+    API_URL,
+    config={
+        "app_name": "Scanner API Documentation"
+    }
+)
+app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
 
 @app.route("/scan", methods=["POST"])
@@ -40,9 +54,11 @@ def scan():
 
     subprocess.run(
         [
-            "python",
+            sys.executable,
             "scanner.py",
-            url
+            url,
+            "--swagger",
+            f"{url.rstrip('/')}/swagger.yaml"
         ],
         cwd="/app",
         env=env,

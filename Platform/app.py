@@ -52,7 +52,8 @@ def run_scan_job(job_id, url):
             json={
                 "url": url,
                 "job_id": job_id
-            }
+            },
+            timeout=300
         )
 
         scan_result = scan_response.json()
@@ -63,13 +64,17 @@ def run_scan_job(job_id, url):
         # Report 실행 상태
         scan_jobs[job_id]["status"] = "Generating Report"
 
-        
+        policy_json_path = os.path.join(result_dir, "policy_result.json")
+
         
         report_response = requests.post(
             "http://report:5002/report",
             json={
-                "json_path": json_path
-            }
+                "url": url,
+                "json_path": json_path,
+                "policy_path": policy_json_path
+            },
+            timeout=180
         )
 
         report_result = report_response.json()
@@ -86,6 +91,19 @@ def run_scan_job(job_id, url):
         scan_jobs[job_id]["html"] = report_paths["html"]
         scan_jobs[job_id]["pdf"] = report_paths["pdf"]
 
+        # ----------------------------------------------------
+        # [추가] 종합 대시보드(dashboard) 경로 불러오기
+        # ----------------------------------------------------
+        if "dashboard" in report_result["results"]:
+            dashboard_paths = report_result["results"]["dashboard"]
+            scan_jobs[job_id]["dashboard_html"] = dashboard_paths["html"]
+
+        # ----------------------------------------------------
+        # [추가] 보안 정책 리포트(policy) 경로 불러오기
+        # ----------------------------------------------------
+        if "policy" in report_result["results"]:
+            policy_paths = report_result["results"]["policy"]
+            scan_jobs[job_id]["policy_html"] = policy_paths["html"]
 
 
         scan_jobs[job_id]["status"] = "Completed"
@@ -221,6 +239,39 @@ def download_pdf(job_id):
         as_attachment=True
     )
 
+# 종합 대시보드(Dashboard) HTML 다운로드 및 조회
+@app.route("/download/dashboard/<job_id>")
+def download_dashboard(job_id):
+    path = os.path.join(
+        RESULTS_DIR,
+        job_id,
+        "dashboard.html"
+    )
+
+    if not os.path.exists(path):
+        return "Dashboard HTML not found", 404
+
+    return send_file(
+        path,
+        as_attachment=True
+    )
+
+# 보안 정책 리포트(Policy Report) HTML 다운로드 및 조회
+@app.route("/download/policy/<job_id>")
+def download_policy(job_id):
+    path = os.path.join(
+        RESULTS_DIR,
+        job_id,
+        "policy_report.html"
+    )
+
+    if not os.path.exists(path):
+        return "Policy Report HTML not found", 404
+
+    return send_file(
+        path,
+        as_attachment=True
+    )
 
 
 if __name__ == "__main__":
