@@ -50,17 +50,14 @@ VULN_TYPE_MAP: dict[str, str] = {
 }
 
 # Severity(Scanner 내부 값, 소문자) -> Report 표기(Capitalize)
-# ⚠️ Report의 SEVERITY_ORDER = ["Critical","High","Medium","Low"] 에는 Info가 없음.
-#    (Scanner에는 info가 있지만 Report에는 없다는 점은 Notion에도 "팀에서 결정 필요"로 남아있음.)
-#    우선 나머지와 표기 스타일을 맞추기 위해 "Info"로 매핑해두되, Report가 SEVERITY_ORDER/
-#    summary 집계에 Info를 추가하기 전까지는 요약 카운트에는 잡히지 않고 카드에만 표시됨.
-#    팀 논의 후 값이 확정되면 여기 한 줄만 바꾸면 됨.
+# Report의 SEVERITY_ORDER(report_generator.py)에 "Info"가 추가되어 요약 집계/카드
+# 표시 모두에 반영됨. (과거엔 Report 쪽에 Info가 없어 팀 논의가 필요했으나 해결됨)
 SEVERITY_DISPLAY_MAP: dict[str, str] = {
     Severity.CRITICAL.value: "Critical",
     Severity.HIGH.value: "High",
     Severity.MEDIUM.value: "Medium",
     Severity.LOW.value: "Low",
-    Severity.INFO.value: "Info",  # TODO(팀 결정 필요): Report의 SEVERITY_ORDER에 Info 추가 여부
+    Severity.INFO.value: "Info",
 }
 
 
