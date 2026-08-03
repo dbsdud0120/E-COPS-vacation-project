@@ -48,6 +48,21 @@ SEVERITY_COLOR = {
 }
 
 # ─────────────────────────────────────────────
+# [4주차] 브랜딩 — 발표 자료로 바로 쓸 수 있도록 로고/팀명을 표시.
+# 로고는 파일 경로 의존 없이 base64로 인라인 임베드해서, 어느 환경에서
+# 열어도(HTML 단독 파일로 옮겨도) 이미지가 깨지지 않도록 함.
+# ─────────────────────────────────────────────
+TEAM_NAME = "E-COPS"
+REPORT_TITLE = "보안 취약점 스캔 리포트"
+TEAM_MEMBERS = ["김수현", "이아서", "나윤영", "박소민"]
+
+_LOGO_PATH = Path(__file__).parent / "assets" / "logo_base64.txt"
+if _LOGO_PATH.exists():
+    LOGO_BASE64 = _LOGO_PATH.read_text().strip()
+else:
+    LOGO_BASE64 = ""  # 로고 파일이 없으면 텍스트 팀명만 표시
+
+# ─────────────────────────────────────────────
 # [1] Scanner의 check_name(snake_case) -> Report 표준 type(Title Case) 매핑
 #     mitigation_guide.md 의 표기와 반드시 일치해야 함
 # ─────────────────────────────────────────────
@@ -269,61 +284,113 @@ HTML_TEMPLATE = """
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>보안 취약점 스캔 리포트</title>
+<title>{{ report_title }}</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
   body {
-    font-family: "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
+    font-family: "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
     background: #F5F6FA;
     color: #1F2430;
     margin: 0;
     padding: 32px 40px;
   }
-  h1 { font-size: 24px; margin-bottom: 4px; color: #111827; }
-  .meta { color: #6B7280; font-size: 13px; margin-bottom: 20px; }
-  .summary { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
-  .summary-box {
-    flex: 1; min-width: 80px; background: #FFFFFF; border: 1px solid #E2E5EC;
-    border-radius: 8px; padding: 12px; text-align: center;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+
+  /* ── 헤더: 제목 + 팀 브랜딩 ── */
+  .header-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
   }
-  .summary-count { font-size: 22px; font-weight: 700; }
-  .summary-label { font-size: 11px; color: #6B7280; margin-top: 4px; }
+  h1 { font-size: 22px; margin: 0; color: #111827; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-logo { height: 34px; width: auto; display: block; }
+  .brand-members { font-size: 11.5px; color: #6B7280; line-height: 1.4; text-align: right; }
+
+  /* ── 툴바형 정보줄 (GA의 Email/Export/Add to Dashboard 자리) ── */
+  .toolbar {
+    display: flex; gap: 22px; font-size: 12.5px; color: #6B7280;
+    padding: 10px 0; border-bottom: 1px solid #E2E5EC; margin-bottom: 18px;
+  }
+  .toolbar b { color: #374151; }
+
+  /* ── 인덱스 탭 (GA의 "Overview" 탭 참고 — 칩 형태로 좀 더 뚜렷하게) ── */
+  .section-tab {
+    display: inline-flex; align-items: center;
+    font-size: 12.5px; font-weight: 700; color: #111827;
+    background: #EFF3FF; border: 1px solid #DCE4FA;
+    border-bottom: 2px solid #2563EB;
+    border-radius: 6px 6px 0 0;
+    padding: 6px 14px; margin-bottom: 0;
+  }
+
+  /* ── 통계 줄: 박스 분리 대신 세로 구분선으로 하나로 이어붙임 ── */
+  .stats-row {
+    display: flex; border: 1px solid #E2E5EC; border-radius: 0 8px 8px 8px;
+    background: #FFFFFF; overflow: hidden; margin-bottom: 28px;
+  }
+  .stat-item { flex: 1; min-width: 70px; padding: 14px 16px; border-left: 1px solid #E2E5EC; }
+  .stat-item:first-child { border-left: none; }
+  .stat-label { font-size: 12px; font-weight: 700; color: #111827; margin-bottom: 6px; }
+  .stat-value { font-size: 26px; font-weight: 700; line-height: 1; }
+  .stat-bar { height: 4px; border-radius: 2px; margin-top: 10px; }
+
+  /* ── 취약점 카드 ── */
   .card {
     background: #FFFFFF; border: 1px solid #E2E5EC; border-left: 4px solid;
-    border-radius: 8px; padding: 14px 18px; margin-bottom: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border-radius: 8px; padding: 16px 20px; margin-bottom: 14px;
   }
   .card-header { display: flex; justify-content: space-between; align-items: center; }
   .vuln-title { font-size: 15px; font-weight: 700; color: #111827; }
   .badge {
-    font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; color: #FFFFFF;
+    font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; color: #111827;
   }
-  .url { font-family: monospace; font-size: 12px; color: #6B7280; margin: 4px 0 10px; }
-  .field-label { font-size: 10.5px; text-transform: uppercase; color: #6B7280; margin-top: 8px; }
-  .field-value {
-    font-size: 12.5px; background: #F9FAFB; border: 1px solid #E2E5EC;
-    border-radius: 6px; padding: 6px 8px; margin-top: 3px;
-    white-space: pre-wrap; word-break: break-word; color: #1F2430;
+  .url { font-family: monospace; font-size: 12px; color: #6B7280; margin: 4px 0 12px; }
+
+  /* 레이블(볼드) vs 본문(일반)으로 위계 구분 — 박스 대신 얇은 구분선만 사용 */
+  .field-block { padding: 9px 0; border-top: 1px solid #F1F2F6; }
+  .field-block:first-of-type { border-top: none; }
+  .field-label { font-size: 12.5px; font-weight: 700; color: #111827; margin-bottom: 4px; }
+  .field-text { font-size: 12.5px; color: #374151; line-height: 1.55; font-weight: 400; }
+  .field-code {
+    font-family: monospace; font-size: 12px; color: #1F2430;
+    background: #F9FAFB; border: 1px solid #E2E5EC; border-radius: 6px;
+    padding: 6px 8px; margin-top: 2px; white-space: pre-wrap; word-break: break-word;
   }
-  .mitigation { color: #059669; }
-  .business-box {
-    margin-top: 10px; background: #F8FAFC; border: 1px solid #E2E5EC;
-    border-radius: 8px; padding: 10px 12px;
+  .mitigation-text { color: #059669; font-weight: 700; }
+
+  /* ── 푸터: 제작팀 크레딧 ── */
+  .report-footer {
+    margin-top: 24px; padding-top: 12px; border-top: 1px solid #E2E5EC;
+    font-size: 11.5px; color: #9CA3AF; text-align: center;
   }
-  .business-box .label { font-size: 10.5px; text-transform: uppercase; color: #2563EB; font-weight: 700; margin-bottom: 4px; }
-  .business-box .text { font-size: 12.5px; line-height: 1.55; color: #374151; }
-  .business-box + .business-box { margin-top: 8px; }
 </style>
 </head>
 <body>
-  <h1>보안 취약점 스캔 리포트</h1>
-  <div class="meta">대상: {{ target }} | 스캔일: {{ scan_date }} | 생성일시: {{ generated_at }} | 총 {{ total }}건</div>
 
-  <div class="summary">
+  <div class="header-row">
+    <h1>{{ report_title }}</h1>
+    <div class="brand">
+      {% if logo_base64 %}
+      <img class="brand-logo" src="data:image/png;base64,{{ logo_base64 }}" alt="{{ team_name }} logo">
+      {% endif %}
+      <div class="brand-members">{{ team_members }}</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <span><b>대상</b> {{ target }}</span>
+    <span><b>스캔일</b> {{ scan_date }}</span>
+    <span><b>생성일시</b> {{ generated_at }}</span>
+    <span><b>총 건수</b> {{ total }}건</span>
+  </div>
+
+  <div class="section-tab">Summary</div>
+
+  <div class="stats-row">
     {% for sev in severity_order %}
-    <div class="summary-box">
-      <div class="summary-count" style="color: {{ colors[sev] }}">{{ summary[sev] }}</div>
-      <div class="summary-label">{{ sev }}</div>
+    <div class="stat-item">
+      <div class="stat-label">{{ sev }}</div>
+      <div class="stat-value" style="color: {{ colors[sev] }}">{{ summary[sev] }}</div>
+      <div class="stat-bar" style="background: {{ colors[sev] }}"></div>
     </div>
     {% endfor %}
   </div>
@@ -335,23 +402,33 @@ HTML_TEMPLATE = """
       <div class="badge" style="background: {{ v.color }};">{{ v.severity }}</div>
     </div>
     <div class="url">{{ v.url }}</div>
-    <div class="field-label">설명</div>
-    <div class="field-value">{{ v.description }}</div>
-    <div class="field-label">증거 (Evidence)</div>
-    <div class="field-value">{{ v.evidence }}</div>
-    <div class="field-label">대응 방안</div>
-    <div class="field-value mitigation">{{ v.mitigation }}</div>
 
-    <div class="business-box">
-      <div class="label">💼 비즈니스 영향</div>
-      <div class="text">{{ v.business_risk }}</div>
+    <div class="field-block">
+      <div class="field-label">Description</div>
+      <div class="field-text">{{ v.description }}</div>
     </div>
-    <div class="business-box">
-      <div class="label">⚖️ 컴플라이언스 관점</div>
-      <div class="text">{{ v.compliance_note }}</div>
+    <div class="field-block">
+      <div class="field-label">Evidence</div>
+      <div class="field-code">{{ v.evidence }}</div>
+    </div>
+    <div class="field-block">
+      <div class="field-label">Mitigation</div>
+      <div class="field-text mitigation-text">{{ v.mitigation }}</div>
+    </div>
+    <div class="field-block">
+      <div class="field-label">Business Impact</div>
+      <div class="field-text">{{ v.business_risk }}</div>
+    </div>
+    <div class="field-block">
+      <div class="field-label">Compliance Perspective</div>
+      <div class="field-text">{{ v.compliance_note }}</div>
     </div>
   </div>
   {% endfor %}
+
+  <div class="report-footer">
+    {{ team_name }} &nbsp;·&nbsp; {{ team_members }}
+  </div>
 </body>
 </html>
 """
@@ -373,6 +450,10 @@ def generate(json_path_str: str, out_prefix: str = "report", guides_dir: str = "
 
     template = jinja_env.from_string(HTML_TEMPLATE)
     html_str = template.render(
+        report_title=REPORT_TITLE,
+        team_name=TEAM_NAME,
+        team_members=" · ".join(TEAM_MEMBERS),
+        logo_base64=LOGO_BASE64,
         target=data.get("target", "-"),
         scan_date=data.get("scan_date", "-"),
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -404,7 +485,5 @@ if __name__ == "__main__":
     json_arg = sys.argv[1]
     prefix_arg = sys.argv[2] if len(sys.argv) > 2 else "report"
     guides_arg = sys.argv[3] if len(sys.argv) > 3 else "."
-
-    generate(json_arg, prefix_arg, guides_arg)
 
     generate(json_arg, prefix_arg, guides_arg)
