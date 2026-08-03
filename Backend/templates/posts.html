@@ -74,11 +74,23 @@
 
     {% for post in posts %}
 
-        <h3>{{ post[1] }}</h3>
+        <h3>
+            [ID : {{ post[0] }}]
+            {{ post[1] }}
+        </h3>
 
         <p>{{ post[2] }}</p>
 
-        <small>작성자 : {{ post[3] }}</small>
+        <small>
+            작성자 : {{ post[3] }}
+
+            {% if current_user_id and post[4] == current_user_id %}
+                <span style="color:green;">(내 글)</span>
+            {% else %}
+                <span style="color:red;">(다른 사용자 글)</span>
+            {% endif %}
+
+        </small>
 
         <br><br>
 

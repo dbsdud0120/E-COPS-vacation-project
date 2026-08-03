@@ -1,4 +1,4 @@
-# Backend (Week 4)
+# Backend (Week 5)
 
 Flask 기반의 EVulnScanner 백엔드입니다.
 
@@ -61,7 +61,9 @@ Backend/
 - 게시글 수정(Update)
 - 게시글 삭제(Delete)
 - 게시글 검색
-- 작성자 본인만 수정/삭제 가능(권한 확인)
+- 게시글 작성 시 로그인한 사용자의 user_id 저장
+- user_id 기반 작성자 권한 검증
+- 작성자 본인만 수정/삭제 가능
 
 ### 파일 업로드
 
@@ -83,20 +85,20 @@ Backend/
 
 ---
 
-## Week 4 변경 사항
+## Week 5 변경 사항
 
 ### 신규 추가
 
-- Swagger UI 연동(`/swagger`)
-- 테스트 계정 및 게시글 자동 생성(`init_db.py`)
-- users.username UNIQUE 제약조건 추가
+- posts 테이블에 `user_id` 컬럼 추가
+- 게시글 생성 시 로그인한 사용자의 `user_id` 저장
+- 기존 테스트 게시글에도 `user_id` 자동 등록
+- Swagger(OpenAPI) 문서 최신화
 
 ### 기능 개선
 
-- init_db.py 실행 시 개발용 데이터베이스 초기화 후 테스트 데이터 자동 생성
-- Swagger 문서를 브라우저에서 바로 확인 가능하도록 개선
-
-
+- 게시글 수정/삭제 권한을 writer 문자열 비교가 아닌 `user_id` 기반으로 검증하도록 개선
+- IDOR 실습 환경과 정상 게시판의 권한 구조를 명확히 분리
+- Swagger에서 JWT Header, 응답 예시(example) 등을 확인 가능하도록 문서 개선
 ---
 
 ## 실행 방법
@@ -126,8 +128,9 @@ python app.py
 - 회원가입 시 아이디 길이, 비밀번호 길이 및 아이디 형식을 검증
 - 정상 로그인에는 Rate Limit을 적용하고, 취약 API에서는 이를 제거하여 비교 실습이 가능하도록 구현
 - JWT Validation Missing, Broken Authentication 등 인증 관련 취약점을 별도 API로 제공
-- 게시글 수정/삭제는 작성자 본인만 가능하도록 권한 검사를 적용
-- 게시글 작성 시 로그인한 사용자를 작성자로 자동 저장
+- 게시글 수정/삭제는 작성자 본인만 가능하도록 권한 - 게시글 작성 시 로그인한 사용자의 username과 user_id를 함께 저장
+- 게시글 수정/삭제는 writer 문자열이 아닌 user_id를 이용하여 작성자를 검증
+- IDOR 취약 API와 정상 API를 분리하여 권한 검사의 차이를 비교할 수 있도록 구현
 - 정상 업로드와 취약 업로드를 서로 다른 디렉터리에 저장하여 관리
 - 업로드된 파일을 조회할 수 있는 라우트를 제공하여 스캐너에서 업로드 이후 접근 여부까지 검증 가능
 
@@ -145,6 +148,7 @@ python app.py
 - Directory Traversal
 - IDOR
 - File Upload
+- 사용자 권한(user_id) 기반 게시글 접근 제어
 
 또한 EVulnScanner 스캐너와 연동하여 취약점 탐지 및 결과 분석이 가능하도록 구현되어 있습니다.
 
@@ -158,7 +162,7 @@ python app.py
 | JWT Validation Missing | `/api/token`으로 JWT를 발급받은 뒤 `/vuln/profile`에 Authorization 헤더를 포함하여 요청하고, 변조된 토큰도 허용되는지 확인    |
 | Rate Limit Missing     | `/vuln/rate-limit`에 동일한 로그인 요청을 반복 전송하여 요청 횟수 제한이 없는 것을 확인                                   |
 | Directory Traversal    | `/vuln/download?file=../../../../etc/passwd` 또는 `../` 경로를 포함한 요청을 전송하여 상위 디렉터리 접근 여부 확인      |
-| IDOR                   | 다른 사용자의 게시글 ID를 이용하여 `/vuln/posts/edit/{post_id}`에 접근하거나 수정 요청을 보내 권한 검증 여부 확인               |
+| IDOR | 정상 게시판은 user_id를 이용해 작성자 권한을 검증하지만, `/vuln/posts/edit/{post_id}`와 `/vuln/posts/delete/{post_id}`는 user_id 검증 없이 게시글 ID만으로 수정 및 삭제가 가능함을 확인 |
 | File Upload            | 취약 업로드 페이지에서 실행 가능한 파일(예: `.php`, `.jsp`) 또는 검증되지 않은 확장자의 파일을 업로드하여 정상 업로드와 비교               |
 | Reflected XSS          | `/vuln/comment?text=<script>alert('XSS')</script>`와 같이 스크립트를 포함한 파라미터를 전달하여 화면에 그대로 출력되는지 확인 |
 
