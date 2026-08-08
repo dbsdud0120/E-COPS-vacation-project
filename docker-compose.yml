@@ -7,7 +7,7 @@ services:
     build:
       context: ./Backend
     container_name: vulnerable-backend
-    restart: on-failure
+    restart: unless-stopped
     expose:
       - "5000"
     environment:
@@ -21,7 +21,8 @@ services:
 
     # DB가 먼저 실행된 후 backend 실행
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - security-network
 
@@ -94,6 +95,13 @@ services:
       - "3306"
     volumes:
       - mysql-data:/var/lib/mysql
+    # DB 컨테이너 헬스체크 설정
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     networks:
       - security-network
 
