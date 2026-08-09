@@ -98,9 +98,9 @@ services:
     # DB 컨테이너 헬스체크 설정
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      interval: 3s
+      timeout: 3s
+      retries: 15
       start_period: 10s
     networks:
       - security-network
