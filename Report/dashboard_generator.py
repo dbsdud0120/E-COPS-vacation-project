@@ -24,6 +24,7 @@ from datetime import datetime
 from collections import Counter
 
 from jinja2 import Environment
+from markupsafe import Markup
 
 from report_generator import (
     SEVERITY_ORDER,
@@ -130,7 +131,7 @@ DASHBOARD_TEMPLATE = """
   }
 </style>
 <script>
-{{ chartjs_inline }}
+{{ chartjs_inline | safe }}
 </script>
 </head>
 <body>
@@ -282,7 +283,7 @@ def generate(json_path_str: str, out_prefix: str = "dashboard", guides_dir: str 
         team_name=TEAM_NAME,
         team_members=" · ".join(TEAM_MEMBERS),
         logo_base64=LOGO_BASE64,
-        chartjs_inline=CHARTJS_INLINE,
+        chartjs_inline=Markup(CHARTJS_INLINE),
         target=data.get("target", "-"),
         scan_date=data.get("scan_date", "-"),
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
