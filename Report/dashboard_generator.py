@@ -1,24 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-dashboard_generator.py  (3주차: 대시보드 제작)
+dashboard_generator.py
 
-report_generator.py 가 만드는 "취약점 하나하나의 상세 카드형 리포트" 와 달리,
-이 스크립트는 "숫자와 그래프로 전체 현황을 한눈에 보여주는 요약 대시보드"를 만든다.
+[버그 수정] 그래프가 안 보이던 원인
+    기존 코드는 Chart.js를 외부 CDN(jsdelivr)에서 <script src="https://...">
+    로 불러왔는데, 실제 배포/사내망 환경에서 그 주소로 외부 요청이 막혀 있으면
+    JS 라이브러리 자체를 못 받아와서 차트가 그려지지 않는다 (네트워크 콘솔에
+    로드 실패로 뜸). 대시보드는 다운로드해서 오프라인으로도 열어볼 수 있어야
+    하므로, Chart.js 라이브러리 코드 자체를 HTML 안에 통째로 내장해서
+    네트워크 요청이 전혀 없어도 항상 그려지도록 고쳤다.
 
-- 전체/등급별(Critical, High, Medium, Low) 취약점 개수
-- 취약점 유형별 개수 (막대그래프)
-- 등급별 비율 (도넛차트)
-- Critical/High 상위 항목 목록
-
-report_generator.py 와 같은 폴더(Report/)에 두고 실행해야 한다.
-(내부의 데이터 정규화 함수들을 그대로 재사용하기 때문)
+[디자인] report_generator.py와 동일한 GA(Google Analytics) 스타일 구조 적용
+    - 인덱스 탭, 연속형 통계 줄(세로 구분선), 볼드/일반 텍스트로 위계 구분
 
 사용법:
     python3 dashboard_generator.py <scanner_result.json> [출력_prefix] [가이드파일_폴더]
-
-예시:
-    python3 dashboard_generator.py latest.json dashboard .
-    -> dashboard.html 생성 (브라우저로 열어서 확인)
 """
 
 import sys
@@ -29,10 +25,12 @@ from collections import Counter
 
 from jinja2 import Environment
 
-# report_generator.py 에 이미 만들어둔 정규화 로직을 그대로 재사용
 from report_generator import (
     SEVERITY_ORDER,
     SEVERITY_COLOR,
+    TEAM_NAME,
+    TEAM_MEMBERS,
+    LOGO_BASE64,
     extract_raw_items,
     get_field,
     normalize_type,
@@ -42,61 +40,125 @@ from report_generator import (
 
 jinja_env = Environment(autoescape=True)
 
+
+def _safe_json(obj):
+    """
+    JSON을 <script> 태그 안에 직접(문자열이 아니라 리터럴로) 삽입할 때 쓰는 헬퍼.
+      1) Jinja autoescape가 " 를 &#34; 로 바꿔버리면 <script> 안에서는
+         HTML 엔티티가 디코딩되지 않아 문법 자체가 깨짐 -> 템플릿에서 |safe로
+         이스케이프를 건너뛰어야 하므로, 여기서 안전한 형태로 미리 만들어둔다.
+      2) 데이터 안에 "</script>" 문자열이 섞여 있으면 그 지점에서 스크립트
+         태그가 조기 종료되어 뒤 내용이 실행 가능한 HTML/스크립트로 해석될
+         수 있으므로 "</"를 "<\\/"로 이스케이프해 방지한다.
+    주의: 이 함수는 severity_labels_json 등 "JS 리터럴로 삽입되는" 값에만
+    쓴다. v.type, v.url처럼 HTML 본문에 텍스트로 들어가는 값은 절대
+    |safe를 붙이지 않고 Jinja의 기본 autoescape(HTML 이스케이프)를 그대로
+    사용해야 XSS 방지가 유지된다.
+    """
+    return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
+
+# Chart.js 라이브러리 전체를 인라인으로 내장 (CDN 의존 제거)
+_CHARTJS_PATH = Path(__file__).parent / "assets" / "chart.umd.js"
+CHARTJS_INLINE = _CHARTJS_PATH.read_text(encoding="utf-8") if _CHARTJS_PATH.exists() else ""
+
 DASHBOARD_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <title>보안 취약점 대시보드</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
   body {
-    font-family: "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
-    background: #0F1117;
-    color: #E6E6EA;
+    font-family: "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
+    background: #F5F6FA;
+    color: #1F2430;
     margin: 0;
     padding: 32px 40px;
   }
-  h1 { font-size: 26px; margin-bottom: 4px; }
-  .meta { color: #9AA0AC; font-size: 13px; margin-bottom: 24px; }
+  .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  h1 { font-size: 22px; margin: 0; color: #111827; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-logo { height: 34px; width: auto; display: block; }
+  .brand-members { font-size: 11.5px; color: #6B7280; line-height: 1.4; text-align: right; }
 
-  .summary { display: flex; gap: 12px; margin-bottom: 28px; }
-  .summary-box {
-    flex: 1; background: #171A23; border: 1px solid #262A36;
-    border-radius: 10px; padding: 18px; text-align: center;
+  .toolbar {
+    display: flex; gap: 22px; font-size: 12.5px; color: #6B7280;
+    padding: 10px 0; border-bottom: 1px solid #E2E5EC; margin-bottom: 18px;
   }
-  .summary-count { font-size: 30px; font-weight: 700; }
-  .summary-label { font-size: 12px; color: #9AA0AC; margin-top: 6px; }
+  .toolbar b { color: #374151; }
 
-  .charts { display: flex; gap: 20px; margin-bottom: 28px; }
+  .section-tab {
+    display: inline-flex; align-items: center;
+    font-size: 12.5px; font-weight: 700; color: #111827;
+    background: #EFF3FF; border: 1px solid #DCE4FA;
+    border-bottom: 2px solid #2563EB;
+    border-radius: 6px 6px 0 0;
+    padding: 6px 14px;
+  }
+
+  .stats-row {
+    display: flex; border: 1px solid #E2E5EC; border-radius: 0 8px 8px 8px;
+    background: #FFFFFF; overflow: hidden; margin-bottom: 24px;
+  }
+  .stat-item { flex: 1; min-width: 70px; padding: 14px 16px; border-left: 1px solid #E2E5EC; }
+  .stat-item:first-child { border-left: none; }
+  .stat-label { font-size: 12px; font-weight: 700; color: #111827; margin-bottom: 6px; }
+  .stat-value { font-size: 26px; font-weight: 700; line-height: 1; }
+  .stat-bar { height: 4px; border-radius: 2px; margin-top: 10px; }
+
+  .charts { display: flex; gap: 16px; margin-bottom: 24px; }
   .chart-card {
-    flex: 1; background: #171A23; border: 1px solid #262A36;
-    border-radius: 10px; padding: 18px;
+    flex: 1; background: #FFFFFF; border: 1px solid #E2E5EC; border-radius: 8px; padding: 18px;
   }
-  .chart-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: #9AA0AC; }
+  .chart-title { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 14px; }
+  .chart-canvas-wrap { position: relative; height: 240px; width: 100%; }
 
-  .top-list { background: #171A23; border: 1px solid #262A36; border-radius: 10px; padding: 18px; }
-  .top-list h2 { font-size: 16px; margin: 0 0 12px; }
+  .top-list { background: #FFFFFF; border: 1px solid #E2E5EC; border-radius: 8px; padding: 18px; }
+  .top-list h2 { font-size: 14px; font-weight: 700; margin: 0 0 12px; color: #111827; }
   .top-item {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 10px 0; border-bottom: 1px solid #262A36; font-size: 13.5px;
+    padding: 10px 0; border-top: 1px solid #F1F2F6; font-size: 13px; color: #374151;
   }
-  .top-item:last-child { border-bottom: none; }
-  .badge {
-    font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; color: #14151b;
+  .top-item:first-of-type { border-top: none; }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; color: #111827; }
+  .empty { color: #9CA3AF; font-size: 13px; padding: 10px 0; }
+
+  .report-footer {
+    margin-top: 24px; padding-top: 12px; border-top: 1px solid #E2E5EC;
+    font-size: 11.5px; color: #9CA3AF; text-align: center;
   }
-  .empty { color: #9AA0AC; font-size: 13px; padding: 10px 0; }
 </style>
+<script>
+{{ chartjs_inline }}
+</script>
 </head>
 <body>
-  <h1>보안 취약점 대시보드</h1>
-  <div class="meta">대상: {{ target }} | 스캔일: {{ scan_date }} | 생성일시: {{ generated_at }} | 총 {{ total }}건</div>
 
-  <div class="summary">
+  <div class="header-row">
+    <h1>보안 취약점 대시보드</h1>
+    <div class="brand">
+      {% if logo_base64 %}
+      <img class="brand-logo" src="data:image/png;base64,{{ logo_base64 }}" alt="{{ team_name }} logo">
+      {% endif %}
+      <div class="brand-members">{{ team_members }}</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <span><b>대상</b> {{ target }}</span>
+    <span><b>스캔일</b> {{ scan_date }}</span>
+    <span><b>생성일시</b> {{ generated_at }}</span>
+    <span><b>총 건수</b> {{ total }}건</span>
+  </div>
+
+  <div class="section-tab">Summary</div>
+  <div class="stats-row">
     {% for sev in severity_order %}
-    <div class="summary-box">
-      <div class="summary-count" style="color: {{ colors[sev] }}">{{ severity_counts[sev] }}</div>
-      <div class="summary-label">{{ sev }}</div>
+    <div class="stat-item">
+      <div class="stat-label">{{ sev }}</div>
+      <div class="stat-value" style="color: {{ colors[sev] }}">{{ severity_counts[sev] }}</div>
+      <div class="stat-bar" style="background: {{ colors[sev] }}"></div>
     </div>
     {% endfor %}
   </div>
@@ -104,11 +166,11 @@ DASHBOARD_TEMPLATE = """
   <div class="charts">
     <div class="chart-card">
       <div class="chart-title">등급별 비율</div>
-      <canvas id="severityChart" height="220"></canvas>
+      <div class="chart-canvas-wrap"><canvas id="severityChart"></canvas></div>
     </div>
     <div class="chart-card">
       <div class="chart-title">취약점 유형별 개수</div>
-      <canvas id="typeChart" height="220"></canvas>
+      <div class="chart-canvas-wrap"><canvas id="typeChart"></canvas></div>
     </div>
   </div>
 
@@ -124,10 +186,14 @@ DASHBOARD_TEMPLATE = """
     {% endfor %}
   </div>
 
+  <div class="report-footer">
+    {{ team_name }} &nbsp;·&nbsp; {{ team_members }}
+  </div>
+
   <script>
-    const severityLabels = {{ severity_labels_json }};
-    const severityData = {{ severity_data_json }};
-    const severityColors = {{ severity_colors_json }};
+    const severityLabels = {{ severity_labels_json | safe }};
+    const severityData = {{ severity_data_json | safe }};
+    const severityColors = {{ severity_colors_json | safe }};
 
     new Chart(document.getElementById('severityChart'), {
       type: 'doughnut',
@@ -136,25 +202,29 @@ DASHBOARD_TEMPLATE = """
         datasets: [{ data: severityData, backgroundColor: severityColors, borderWidth: 0 }]
       },
       options: {
-        plugins: { legend: { labels: { color: '#E6E6EA' } } }
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#374151' } } }
       }
     });
 
-    const typeLabels = {{ type_labels_json }};
-    const typeData = {{ type_data_json }};
+    const typeLabels = {{ type_labels_json | safe }};
+    const typeData = {{ type_data_json | safe }};
 
     new Chart(document.getElementById('typeChart'), {
       type: 'bar',
       data: {
         labels: typeLabels,
-        datasets: [{ data: typeData, backgroundColor: '#35C2E8', borderRadius: 4 }]
+        datasets: [{ data: typeData, backgroundColor: '#2563EB', borderRadius: 4 }]
       },
       options: {
         indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: '#9AA0AC' }, grid: { color: '#262A36' } },
-          y: { ticks: { color: '#E6E6EA' }, grid: { display: false } }
+          x: { ticks: { color: '#6B7280' }, grid: { color: '#F1F2F6' } },
+          y: { ticks: { color: '#374151' }, grid: { display: false } }
         }
       }
     });
@@ -175,7 +245,7 @@ def build_dashboard_data(data: dict) -> dict:
             "type": v_type,
             "url": get_field(raw, "url") or "-",
             "severity": v_sev,
-            "color": SEVERITY_COLOR.get(v_sev, "#8992A9"),
+            "color": SEVERITY_COLOR.get(v_sev, "#94A3B8"),
         })
 
     severity_counts = {s: 0 for s in SEVERITY_ORDER}
@@ -184,7 +254,6 @@ def build_dashboard_data(data: dict) -> dict:
             severity_counts[v["severity"]] += 1
 
     type_counts = Counter(v["type"] for v in vulns)
-    # 개수 많은 순으로 정렬
     type_items = sorted(type_counts.items(), key=lambda x: x[1], reverse=True)
 
     top_items = [v for v in vulns if v["severity"] in ("Critical", "High")]
@@ -210,6 +279,10 @@ def generate(json_path_str: str, out_prefix: str = "dashboard", guides_dir: str 
 
     template = jinja_env.from_string(DASHBOARD_TEMPLATE)
     html_str = template.render(
+        team_name=TEAM_NAME,
+        team_members=" · ".join(TEAM_MEMBERS),
+        logo_base64=LOGO_BASE64,
+        chartjs_inline=CHARTJS_INLINE,
         target=data.get("target", "-"),
         scan_date=data.get("scan_date", "-"),
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -218,11 +291,11 @@ def generate(json_path_str: str, out_prefix: str = "dashboard", guides_dir: str 
         severity_counts=dash["severity_counts"],
         colors=SEVERITY_COLOR,
         top_items=dash["top_items"],
-        severity_labels_json=json.dumps(SEVERITY_ORDER, ensure_ascii=False),
-        severity_data_json=json.dumps([dash["severity_counts"][s] for s in SEVERITY_ORDER]),
-        severity_colors_json=json.dumps([SEVERITY_COLOR[s] for s in SEVERITY_ORDER]),
-        type_labels_json=json.dumps(dash["type_labels"], ensure_ascii=False),
-        type_data_json=json.dumps(dash["type_data"]),
+        severity_labels_json=_safe_json(SEVERITY_ORDER),
+        severity_data_json=_safe_json([dash["severity_counts"][s] for s in SEVERITY_ORDER]),
+        severity_colors_json=_safe_json([SEVERITY_COLOR[s] for s in SEVERITY_ORDER]),
+        type_labels_json=_safe_json(dash["type_labels"]),
+        type_data_json=_safe_json(dash["type_data"]),
     )
 
     out_path = f"{out_prefix}.html"
