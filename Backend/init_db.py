@@ -7,7 +7,7 @@ from werkzeug.security import generate_password_hash
 # 기존에는 한 번 연결을 시도해서 실패하면 그대로 죽어버렸다. entrypoint.sh는 이 실패를
 # 무시하고 app.py를 그냥 실행해버려서, "테이블이 없다"는 에러가 반복해서 나는 문제가 있었음.
 # -> MySQL이 준비될 때까지 몇 초 간격으로 재시도한다.
-MAX_RETRIES = 15
+MAX_RETRIES = 30
 RETRY_DELAY_SECONDS = 2
 
 
