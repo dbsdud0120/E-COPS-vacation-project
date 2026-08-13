@@ -4,10 +4,10 @@ crawler.py
 대상 URL에서 시작해 같은 도메인 내부의 링크와 form을 수집한다.
 결과물은 scanner.py가 각 checks/*.py 함수에 넘겨줄 "타겟 목록"이다.
 
-MVP 범위:
-  - GET 요청만 사용 (인증/세션 처리는 다음 주차)
+범위:
+  - GET 요청만 사용해 크롤링 (로그인이 필요한 페이지 접근은 auth.py가 담당)
   - depth(탐색 깊이)로 무한 크롤링 방지
-  - <a href>, <form> 두 가지만 수집 (JS로 렌더링되는 링크는 다음 주차: Selenium/Playwright 고려)
+  - <a href>, <form> 두 가지만 수집 (JS로 렌더링되는 링크는 미지원)
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ class FormInfo:
     method: str          # GET / POST
     inputs: list[str] = field(default_factory=list)  # input name 목록
     # input name -> type (예: "file", "text", "password"). <textarea>/<select>는 태그명을 그대로 사용.
-    # ⚙️ 3주차: checks/file_upload.py가 type="file" 필드를 찾는 데 사용.
+    # checks/file_upload.py가 type="file" 필드를 찾는 데 사용.
     input_types: dict[str, str] = field(default_factory=dict)
 
 

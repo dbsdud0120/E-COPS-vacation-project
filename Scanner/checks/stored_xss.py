@@ -29,7 +29,6 @@ DUMMY_VALUE = "test"  # payload를 넣지 않는 나머지 필수 입력값을 �
 
 # form이 제출되는 경로(action의 path) -> 결과가 이스케이프 없이 출력되는 실제 확인 경로
 # Backend/app.py 기준: /posts로 글을 쓰면 /vuln/posts에서 이스케이프 없이 보여줌
-# TODO(Backend 변경 시): 매핑이 추가/변경되면 여기 한 줄만 수정
 REVISIT_URL_OVERRIDES = {
     "/posts": "/vuln/posts",
 }

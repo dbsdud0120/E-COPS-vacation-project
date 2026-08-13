@@ -31,7 +31,6 @@ CHECK_REGISTRY = {
     "idor": idor.run,
     "security_headers": security_headers.run,
     "file_upload": file_upload.run,
-    # 3주차 추가: JWT 검증 / Authorization(Broken Authentication) / Rate Limit
     "missing_jwt_verification": jwt_verification.run,
     "broken_authentication": broken_authentication.run,
     "missing_rate_limiting": rate_limiting.run,

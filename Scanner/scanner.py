@@ -55,7 +55,7 @@ def load_payloads(check_name: str) -> list[str]:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="웹 자동 진단 Scanner (MVP)")
+    parser = argparse.ArgumentParser(description="웹 자동 진단 Scanner")
     parser.add_argument("url", help="검사할 대상 URL (예: https://example.com)")
     parser.add_argument("--depth", type=int, default=2, help="크롤링 최대 깊이 (기본값: 2)")
     parser.add_argument(
@@ -181,7 +181,7 @@ def run_scan(target_url: str, depth: int, check_names: list[str], swagger_source
 
             all_findings.extend(findings)
 
-    # ⚙️ 3주차: Report(report_generator.py)가 읽는 스키마에 맞춤
+    # Report(report_generator.py)가 읽는 스키마에 맞춤
     #   - scanned_at -> scan_date, findings -> vulnerabilities
     #   - 각 항목의 check_name -> type / severity Capitalize 변환은
     #     Finding.to_dict()(checks/base.py)에서 처리됨

@@ -15,7 +15,7 @@ SQL Injection 탐지 틀. 두 가지 방식을 함께 사용한다.
      (에러 시그니처가 이미 잡힌 경우는 1)에서 기록하고 2)는 건너뛴다 — 중복 방지)
 
 주의:
-  - 아직 응답시간 기반(Blind/Time-based) 탐지는 없음. 다음 주차 TODO:
+  - 응답시간 기반(Blind/Time-based) 탐지는 아직 없음. 필요 시 추가 개선 가능:
       a) 실제 DB(MySQL/PostgreSQL/MSSQL/SQLite 등)별 에러 시그니처로 SIGNATURES 보강
       b) 응답시간 기반(Blind/Time-based) 탐지 추가
 """
@@ -27,7 +27,7 @@ from checks.base import Finding, Severity, make_finding
 
 CHECK_NAME = "sql_injection"
 
-# TODO(다음 주차): 실제 DB(MySQL/PostgreSQL/MSSQL/SQLite 등)별 에러 시그니처로 보강
+# DB(MySQL/PostgreSQL/MSSQL/SQLite 등)별 에러 시그니처
 SIGNATURES = [
     "you have an error in your sql syntax",
     "warning: mysql",
@@ -112,7 +112,7 @@ def run(session, page, payloads: list[str]) -> list[Finding]:
             try:
                 resp = session.get(test_url, timeout=5)
             except Exception:
-                continue  # TODO: 로깅 강화
+                continue  # 요청 실패는 건너뜀
 
             matched = _response_has_sql_error(resp.text)
             if matched:

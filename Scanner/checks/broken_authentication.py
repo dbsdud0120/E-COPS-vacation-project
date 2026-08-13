@@ -1,13 +1,12 @@
 """
 checks/broken_authentication.py
 ----------------------------------
-인증/인가(Authentication & Authorization) 취약점 탐지. (3주차 추가)
+인증/인가(Authentication & Authorization) 취약점 탐지.
 
 check_name/출력 이름은 Report의 mitigation_guide.md 표기에 맞춰 "broken_authentication"
-(Broken Authentication)을 사용한다. (Notion 3주차 요청의 "Authorization 취약점 검사"에 대응 —
-mitigation_guide.md 표에 별도의 "Authorization" 항목이 없고 "Broken Authentication" 항목이
-로그인/세션 관련 인증-인가 취약점을 다루므로 이 이름으로 통일함. 객체 단위 권한 검증 누락은
-이미 checks/idor.py가 다루고 있어 중복되지 않도록 범위를 분리함.)
+(Broken Authentication)을 사용한다. mitigation_guide.md 표에 별도의 "Authorization" 항목이
+없고 "Broken Authentication" 항목이 로그인/세션 관련 인증-인가 취약점을 다루므로 이 이름으로
+통일함. 객체 단위 권한 검증 누락은 이미 checks/idor.py가 다루고 있어 중복되지 않도록 범위를 분리함.
 
 검사 항목 (mitigation_guide.md의 "로그인 시도 횟수 제한, 세션 토큰 무작위성 강화, MFA 도입" 기준):
   1. 세션 쿠키 보안 속성(HttpOnly / Secure / SameSite) 누락 여부

@@ -19,7 +19,6 @@ USERNAME_FIELD = "username"
 PASSWORD_FIELD = "password"
 
 # 로그인 성공 여부를 판단하기 위해 호출할, "로그인해야만 200이 나오는" 엔드포인트
-# TODO(Backend 변경 시): 로그인 필요 페이지가 바뀌면 이 값도 같이 수정
 AUTH_CHECK_PATH = "/users"
 
 

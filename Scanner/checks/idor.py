@@ -11,20 +11,17 @@ IDOR(Insecure Direct Object Reference) / 권한 검증 누락 탐지.
      - 계정 2개가 있으면: 서로 다른 두 계정이 동일 리소스에 똑같이 접근되는지 확인
        + 응답이 JSON이고 OWNER_FIELD_CANDIDATES에 해당하는 소유자 필드를 담고 있으면,
          그 값이 계정 A/B 중 누구 것인지까지 비교해서 "실제 타 계정 소유 데이터 접근"을
-         HIGH로 구분해서 기록한다 (아래 6주차 갱신 내용 참고).
+         HIGH로 구분해서 기록한다.
 
-✅ (6주차 갱신) Backend posts 테이블에 user_id 컬럼이 추가되었고, /api/posts,
-   /api/posts/<id> 응답 JSON에 소유자 정보로 "writer"(작성자 username)가 포함됨을
-   확인했다. 이에 맞춰 OWNER_FIELD_CANDIDATES에 "writer"를 추가하고, 두 계정 응답을
-   비교할 때 응답 JSON의 소유자 필드 값이 로그인한 두 계정 중 한쪽(A 또는 B)과
-   일치하는데 다른 쪽 계정으로도 200이 나오면 "타 계정 소유 데이터 접근(BOLA)"으로
-   판정하도록 구현을 확장했다.
+Backend /api/posts, /api/posts/<id> 응답 JSON에는 소유자 정보로 "writer"(작성자
+username)가 포함되어 있어, OWNER_FIELD_CANDIDATES에 "writer"가 들어 있다. 두 계정 응답을
+비교할 때 응답 JSON의 소유자 필드 값이 로그인한 두 계정 중 한쪽(A 또는 B)과 일치하는데
+다른 쪽 계정으로도 200이 나오면 "타 계정 소유 데이터 접근(BOLA)"으로 판정한다.
    - 소유자 필드를 못 찾은 경우(응답이 JSON이 아니거나 후보 필드가 전혀 없는 경우)에는
-     예전처럼 "권한 검증 없음으로 추정"만 기록한다 (오탐 방지를 위해 소유권 단정을 하지 않음).
+     "권한 검증 없음으로 추정"만 기록한다 (오탐 방지를 위해 소유권 단정을 하지 않음).
    - /posts/edit, /posts/delete 처럼 인증·소유자 검증이 있는 정상 엔드포인트에서는
      본 검사가 200을 받지 못하므로(비로그인/타 계정은 차단) findings가 발생하지 않고,
-     /vuln/posts/edit, /vuln/posts/delete 처럼 의도적으로 취약한 엔드포인트에서만
-     탐지되는 것을 확인했다.
+     /vuln/posts/edit, /vuln/posts/delete 처럼 의도적으로 취약한 엔드포인트에서만 탐지된다.
 
 ⚙️ payloads/idor.txt 형식 (한 줄에 하나, 최소 2줄 있어야 계정 비교가 활성화됨):
    testuser1:testpass1
@@ -46,7 +43,7 @@ from auth import login
 CHECK_NAME = "idor"
 
 # 응답 JSON에서 소유자를 나타낼 가능성이 있는 필드 이름
-# (6주차) Backend /api/posts, /api/posts/<id> 응답에 실제로 포함되는 "writer"(작성자 username)를 추가함
+# Backend /api/posts, /api/posts/<id> 응답에 포함되는 "writer"(작성자 username) 포함
 OWNER_FIELD_CANDIDATES = ["user_id", "owner_id", "writer_id", "writer", "username"]
 
 # URL 경로에서 숫자 ID를 찾는 패턴 (예: /api/posts/3, /posts/12/edit)

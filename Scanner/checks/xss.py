@@ -3,17 +3,17 @@ checks/xss.py
 --------------
 가장 기본적인 "반사형(Reflected) XSS" 탐지 틀.
 
-동작 방식(MVP):
+동작 방식:
   1. 쿼리 파라미터에 고유 마커가 포함된 payload를 삽입해 요청
   2. 응답 HTML에 payload가 "이스케이프 없이" 그대로 반사되는지 확인
   3. 그대로 반사되면 Finding 생성
 
 주의:
   - 단순 문자열 포함 여부만 체크하는 매우 기초적인 방식이다.
-  - 다음 주차에 취약 서버가 준비되면:
+  - 개선 여지:
       a) BeautifulSoup으로 실제 <script> 컨텍스트/속성 컨텍스트 반사 여부 구분
       b) DOM 기반 XSS는 별도 headless 브라우저(Playwright) 검사로 분리
-      c) 저장형(Stored) XSS는 "제출 후 다른 페이지 재방문" 시나리오로 별도 구현
+      c) 저장형(Stored) XSS는 stored_xss.py에서 "제출 후 다른 페이지 재방문" 시나리오로 별도 구현됨
 """
 
 from __future__ import annotations
