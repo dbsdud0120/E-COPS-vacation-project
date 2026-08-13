@@ -114,6 +114,29 @@ def run_scan_job(job_id, url):
         scan_jobs[job_id]["status"] = "Error"
         scan_jobs[job_id]["error"] = str(e)
 
+# 실시간 스캔 로그 조회
+@app.route("/logs/<job_id>")
+def get_logs(job_id):
+
+    log_path = os.path.join(RESULTS_DIR, job_id, "scan.log")
+
+    offset = int(request.args.get("offset", 0))
+
+    if not os.path.exists(log_path):
+        return jsonify({"lines": [], "offset": offset})
+
+    with open(log_path, "r", encoding="utf-8") as f:
+        f.seek(offset)
+        new_content = f.read()
+        new_offset = f.tell()
+
+    lines = new_content.splitlines()
+
+    return jsonify({
+        "lines": lines,
+        "offset": new_offset
+    })
+
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"}), 200
