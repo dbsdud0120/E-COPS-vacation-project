@@ -43,27 +43,57 @@
   .download-btn.dashboard { background-color: #2E7D32; } /* 초록색 (대시보드) */
   .download-btn.policy { background-color: #00838F; }    /* 청록색 (보안 정책 리포트) */
   .download-btn:hover { opacity: 0.9; }
+
+  /* 실시간 로그 패널 */
+  .log-box {
+    margin-top: 20px;
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    font-family: "Consolas", "D2Coding", monospace;
+    font-size: 13px;
+    padding: 14px;
+    border-radius: 6px;
+    height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    display: none;
+  }
+  .log-box .log-line {
+    padding: 1px 0;
+  }
+  .log-label {
+    margin-top: 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    display: none;
+  }
 </style>
 </head>
 <body>
   <div class="container">
     <h1 id="status-title">확인 중...</h1>
     <p id="status-desc">스캔 상태를 확인하고 있습니다.</p>
-    
+
     <!-- 결과물 링크 영역 -->
     <div id="download-links" class="link-group" style="display:none;">
       <!-- 종합 대시보드 -->
       <a id="btn-dashboard" class="download-btn dashboard" href="/download/dashboard/{{ job_id }}" target="_blank" style="display:none;">📊 종합 대시보드 (Dashboard)</a>
-      
-      <!-- 보안 정책 점검 리포트 (추가됨) -->
+
+      <!-- 보안 정책 점검 리포트 -->
       <a id="btn-policy" class="download-btn policy" href="/download/policy/{{ job_id }}" target="_blank" style="display:none;">🛡️ 보안 정책 점검 리포트 (Policy)</a>
 
       <!-- 취약점 상세 리포트 (HTML / PDF) -->
       <a id="btn-html" class="download-btn" href="/download/html/{{ job_id }}" target="_blank">📄 취약점 상세 리포트 (HTML)</a>
       <a id="btn-pdf" class="download-btn" href="/download/pdf/{{ job_id }}">📑 취약점 상세 리포트 (PDF)</a>
     </div>
-    
+
     <p id="error-text" style="color:red; font-weight:bold; margin-top:16px;"></p>
+
+    <!-- 실시간 로그 -->
+    <p id="log-label" class="log-label">🖥️ 실시간 스캔 로그</p>
+    <div id="log-box" class="log-box"></div>
   </div>
 
   <script>
@@ -72,29 +102,43 @@
     const descEl = document.getElementById("status-desc");
     const downloadEl = document.getElementById("download-links");
     const errorEl = document.getElementById("error-text");
-    
+    const logBoxEl = document.getElementById("log-box");
+    const logLabelEl = document.getElementById("log-label");
+
     const btnDashboard = document.getElementById("btn-dashboard");
     const btnPolicy = document.getElementById("btn-policy");
-    
-    let intervalId = null;
+
+    // 상태값 → 사용자에게 보여줄 문구 매핑
+    const statusMessages = {
+      "Ready": { title: "준비 중", desc: "스캔을 준비하고 있습니다..." },
+      "Scanning": { title: "취약점 수집 중", desc: "웹 구조를 분석하고 취약점 정보를 수집하고 있습니다..." },
+      "Generating Report": { title: "리포트 생성 중", desc: "수집된 데이터를 바탕으로 리포트를 작성하고 있습니다..." },
+      "Completed": { title: "Scan Completed", desc: "취약점 분석 및 정책 점검이 완료되었습니다." },
+      "Error": { title: "Scan Failed", desc: "오류가 발생했습니다." }
+    };
+
+    let statusIntervalId = null;
+    let logIntervalId = null;
+    let logOffset = 0;
 
     async function checkStatus() {
       try {
         const res = await fetch(`/status/${jobId}`);
         const data = await res.json();
-        
+
         if (data.error) {
           titleEl.textContent = "Job Not Found";
           descEl.textContent = data.error;
-          clearInterval(intervalId);
+          clearInterval(statusIntervalId);
+          clearInterval(logIntervalId);
           return;
         }
-        
+
         if (data.status === "Completed") {
-          titleEl.textContent = "Scan Completed";
-          descEl.textContent = "취약점 분석 및 정책 점검이 완료되었습니다.";
-          
-          // 데이터 유무에 맞춰 버튼 활성화
+          const msg = statusMessages["Completed"];
+          titleEl.textContent = msg.title;
+          descEl.textContent = msg.desc;
+
           if (data.dashboard_html) {
             btnDashboard.style.display = "block";
           }
@@ -103,25 +147,59 @@
           }
 
           downloadEl.style.display = "flex";
-          clearInterval(intervalId);
+          clearInterval(statusIntervalId);
+          // 완료 후에도 잠깐 더 폴링해서 남은 로그 줄을 마저 받고 정지
+          setTimeout(() => clearInterval(logIntervalId), 3000);
         } else if (data.status === "Error") {
-          titleEl.textContent = "Scan Failed";
-          descEl.textContent = "오류가 발생했습니다.";
+          const msg = statusMessages["Error"];
+          titleEl.textContent = msg.title;
+          descEl.textContent = msg.desc;
           errorEl.textContent = data.error || "";
-          clearInterval(intervalId);
+          clearInterval(statusIntervalId);
+          setTimeout(() => clearInterval(logIntervalId), 3000);
         } else {
-          titleEl.textContent = "Scanning...";
-          descEl.textContent = `현재 상태: ${data.status}`;
+          // Ready, Scanning, Generating Report 등 진행 중 상태
+          const msg = statusMessages[data.status] || { title: "진행 중...", desc: `현재 상태: ${data.status}` };
+          titleEl.textContent = msg.title;
+          descEl.textContent = msg.desc;
         }
       } catch (e) {
         titleEl.textContent = "상태 확인 실패";
         descEl.textContent = "서버와 통신 중 오류가 발생했습니다.";
-        clearInterval(intervalId);
+        clearInterval(statusIntervalId);
+        clearInterval(logIntervalId);
+      }
+    }
+
+    async function pollLogs() {
+      try {
+        const res = await fetch(`/logs/${jobId}?offset=${logOffset}`);
+        const data = await res.json();
+
+        if (data.lines && data.lines.length > 0) {
+          logBoxEl.style.display = "block";
+          logLabelEl.style.display = "block";
+
+          for (const line of data.lines) {
+            const lineEl = document.createElement("div");
+            lineEl.className = "log-line";
+            lineEl.textContent = line;
+            logBoxEl.appendChild(lineEl);
+          }
+
+          logOffset = data.offset;
+          // 새 로그가 추가되면 자동으로 맨 아래로 스크롤
+          logBoxEl.scrollTop = logBoxEl.scrollHeight;
+        }
+      } catch (e) {
+        // 로그 폴링 실패는 조용히 무시 (상태 폴링이 메인이므로)
       }
     }
 
     checkStatus();
-    intervalId = setInterval(checkStatus, 2000);
+    pollLogs();
+    statusIntervalId = setInterval(checkStatus, 2000);
+    logIntervalId = setInterval(pollLogs, 1000);
   </script>
 </body>
 </html>
