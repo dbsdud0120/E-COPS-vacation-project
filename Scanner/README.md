@@ -161,9 +161,11 @@ Notion "안 맞는 부분 정리"에서 Scanner 담당으로 배정된 항목들
 
 - ✅ `findings` → `vulnerabilities`, `check_name` → `type` (Finding.to_dict() / scanner.py)
 - ✅ check_name → Report 표기 이름 매핑 (`checks/base.py`의 `VULN_TYPE_MAP`, `mitigation_guide.md`와 동일한 문자열)
-- ✅ severity Capitalize (`checks/base.py`의 `SEVERITY_DISPLAY_MAP`). 단, `info`는 Report의
-  `SEVERITY_ORDER`에 아직 없어 "Info"로 표기는 하되 요약 카운트에는 안 잡힘 — **Info 등급을
-  Report에 추가할지는 팀 결정 필요** (Notion에도 명시됨)
+- ✅ severity Capitalize (`checks/base.py`의 `SEVERITY_DISPLAY_MAP`)
+- ✅ (6주차) **Info 등급 처리 방식 최종 확정**: Report의 `SEVERITY_ORDER`/`build_summary()`에 `"Info"`가
+  포함되어, Info 등급도 다른 등급과 동일하게 요약 카운트/카드에 표시됨을 코드로 재확인함
+  (`Report/report_generator.py`, `Report/dashboard_generator.py`, `severity_guide.md` 모두 일치).
+  이전 버전의 "요약 카운트에는 안 잡힘 / 팀 결정 필요"는 더 이상 사실이 아니므로 문구를 갱신함
 - ✅ `results/latest.json` 항상 최신 결과로 갱신 (타임스탬프 파일과 동시 저장)
 - ✅ `file_upload` 검사 추가
 - ✅ 3주차 신규 검사: `missing_jwt_verification`(JWT 검증), `broken_authentication`(Authorization/인증),
@@ -178,9 +180,20 @@ Notion "안 맞는 부분 정리"에서 Scanner 담당으로 배정된 항목들
 - Scanner/Report가 결과 폴더(`results/`)를 공유하려면 통합 담당이 `docker-compose.yml`에
   공유 볼륨을 추가해야 함 (지금은 로컬 실행 시 `results/latest.json` 경로만 맞춰둔 상태)
 
-## 아직 남은 것 (Backend 확인/요청 필요)
+## 6주차: IDOR 재검증 (완료)
 
-- `posts` 테이블에 소유자(`user_id`) 컬럼이 없어, IDOR은 "권한 검증 자체가 없다"까지만 탐지 가능. 실제 "내 것이 아닌 데이터 접근" 시나리오는 컬럼 추가 후 `checks/idor.py`의 `OWNER_FIELD_CANDIDATES` 부분을 확장하면 됨
+- Backend `posts` 테이블에 소유자(`user_id`) 컬럼이 추가되었고, `/api/posts`, `/api/posts/<id>` 응답 JSON에
+  작성자 정보가 `"writer"`(username) 필드로 노출되는 것을 확인함.
+- `checks/idor.py`의 `OWNER_FIELD_CANDIDATES`에 `"writer"`를 추가하고, 계정 A/B 두 세션의 응답을 비교할 때
+  응답 JSON의 소유자 필드 값이 실제로 A/B 중 누구 것인지까지 비교하도록 확장함.
+  → 이제 "권한 검증이 아예 없다"뿐 아니라 **"타 계정 소유 데이터를 실제로 열람했다"**까지 구분해서 evidence에 기록됨.
+- 정상 엔드포인트(`/posts/edit/<id>`, `/posts/delete/<id>`)는 소유자 검증이 있어 findings가 발생하지 않고,
+  의도적 취약 엔드포인트(`/vuln/posts/edit/<id>`, `/vuln/posts/delete/<id>`, `/api/posts/<id>`)에서만
+  탐지되는 것을 스텁 응답으로 재검증함.
+- 응답이 JSON이 아니거나 소유자 필드를 못 찾는 경우(예: 다른 리소스 타입)에는 예전처럼
+  "권한 검증 없음으로 추정"만 기록해 오탐(false positive)을 만들지 않도록 유지함.
+
+## 아직 남은 것 (Backend 확인/요청 필요)
 - swagger.yaml이 정적 파일로만 존재 (서버 라우트로 노출 안 됨) — 지금은 로컬 파일 경로로 넘겨서 사용 중. 나중에 `/swagger.json` 같은 라우트로 노출되면 `--swagger` 값을 URL로 바꾸기만 하면 됨
 - 현재 Backend(`app.py`)는 `/api/token`으로 실제 JWT를 발급하고 `/vuln/profile`에서 서명 검증 없이
   신뢰하는 것까지 구현되어 있음 → `checks/jwt_verification.py`가 실제로 이 취약점을 탐지하는 것까지

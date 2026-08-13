@@ -9,15 +9,22 @@ IDOR(Insecure Direct Object Reference) / 권한 검증 누락 탐지.
   3. 계정 A/B 세션으로 각각 접근했을 때 응답을 비교
      - 계정 정보가 없으면: "인증 없이도 접근되는지"만 확인 (권한 검증 자체 누락 탐지)
      - 계정 2개가 있으면: 서로 다른 두 계정이 동일 리소스에 똑같이 접근되는지 확인
+       + 응답이 JSON이고 OWNER_FIELD_CANDIDATES에 해당하는 소유자 필드를 담고 있으면,
+         그 값이 계정 A/B 중 누구 것인지까지 비교해서 "실제 타 계정 소유 데이터 접근"을
+         HIGH로 구분해서 기록한다 (아래 6주차 갱신 내용 참고).
 
-⚠️ 현재(2주차 시작 시점) Backend의 posts 테이블에는 소유자(user_id) 개념이 없어서,
-   "내 것이 아닌 남의 데이터가 보인다"까지는 판별하지 못하고
-   "권한 검증이 아예 없다"만 잡습니다. 그래도 이 자체가 실제 보안 이슈이므로
-   findings로 기록합니다.
-
-⚙️ Backend가 리소스에 소유자(user_id) 컬럼과 권한 체크를 추가하면:
-   - OWNER_FIELD_CANDIDATES에 실제 필드명을 넣고, 아래 TODO 표시된 부분에서
-     응답 JSON을 파싱해 "A의 소유물을 B가 볼 수 있는가"까지 비교하도록 확장하세요.
+✅ (6주차 갱신) Backend posts 테이블에 user_id 컬럼이 추가되었고, /api/posts,
+   /api/posts/<id> 응답 JSON에 소유자 정보로 "writer"(작성자 username)가 포함됨을
+   확인했다. 이에 맞춰 OWNER_FIELD_CANDIDATES에 "writer"를 추가하고, 두 계정 응답을
+   비교할 때 응답 JSON의 소유자 필드 값이 로그인한 두 계정 중 한쪽(A 또는 B)과
+   일치하는데 다른 쪽 계정으로도 200이 나오면 "타 계정 소유 데이터 접근(BOLA)"으로
+   판정하도록 구현을 확장했다.
+   - 소유자 필드를 못 찾은 경우(응답이 JSON이 아니거나 후보 필드가 전혀 없는 경우)에는
+     예전처럼 "권한 검증 없음으로 추정"만 기록한다 (오탐 방지를 위해 소유권 단정을 하지 않음).
+   - /posts/edit, /posts/delete 처럼 인증·소유자 검증이 있는 정상 엔드포인트에서는
+     본 검사가 200을 받지 못하므로(비로그인/타 계정은 차단) findings가 발생하지 않고,
+     /vuln/posts/edit, /vuln/posts/delete 처럼 의도적으로 취약한 엔드포인트에서만
+     탐지되는 것을 확인했다.
 
 ⚙️ payloads/idor.txt 형식 (한 줄에 하나, 최소 2줄 있어야 계정 비교가 활성화됨):
    testuser1:testpass1
@@ -39,8 +46,8 @@ from auth import login
 CHECK_NAME = "idor"
 
 # 응답 JSON에서 소유자를 나타낼 가능성이 있는 필드 이름
-# TODO(Backend가 소유자 컬럼 추가 후): 실제 필드명으로 교체하면 소유권 비교 로직을 추가할 수 있음
-OWNER_FIELD_CANDIDATES = ["user_id", "owner_id", "writer_id", "username"]
+# (6주차) Backend /api/posts, /api/posts/<id> 응답에 실제로 포함되는 "writer"(작성자 username)를 추가함
+OWNER_FIELD_CANDIDATES = ["user_id", "owner_id", "writer_id", "writer", "username"]
 
 # URL 경로에서 숫자 ID를 찾는 패턴 (예: /api/posts/3, /posts/12/edit)
 ID_PATTERN = re.compile(r"/(\d+)(?:/|$|\?)")
@@ -52,6 +59,25 @@ DESTRUCTIVE_PATH_HINTS = ("delete", "remove", "drop")
 def _looks_destructive(url: str) -> bool:
     path = urlparse(url).path.lower()
     return any(hint in path for hint in DESTRUCTIVE_PATH_HINTS)
+
+
+def _extract_owner(resp) -> str | None:
+    """응답 JSON에서 OWNER_FIELD_CANDIDATES에 해당하는 소유자 값을 찾아 문자열로 반환.
+    JSON이 아니거나 후보 필드가 없으면 None (소유권 비교 불가로 처리)."""
+    try:
+        data = resp.json()
+    except ValueError:
+        return None
+
+    if not isinstance(data, dict):
+        return None
+
+    for field in OWNER_FIELD_CANDIDATES:
+        value = data.get(field)
+        if value not in (None, ""):
+            return str(value)
+
+    return None
 
 
 def _parse_accounts(payloads: list[str]) -> list[tuple[str, str]]:
@@ -130,18 +156,41 @@ def run(session, page, payloads: list[str]) -> list[Finding]:
     except Exception:
         return findings
 
-    # TODO(소유자 필드 추가 후): 여기서 resp_a.json()/resp_b.json()의
-    # OWNER_FIELD_CANDIDATES 값을 비교해서, B가 A 소유 리소스를 보고 있는지까지 판별
-
     if resp_a.status_code == 200 and resp_b.status_code == 200:
-        findings.append(make_finding(
-            check_name=CHECK_NAME,
-            url=page.url,
-            parameter="id",
-            payload=None,
-            severity=Severity.HIGH,
-            evidence=f"'{user_a}', '{user_b}' 두 계정 모두 동일 리소스에 200으로 접근 가능 (소유권 검증 없음으로 추정)",
-            description="객체 ID에 대한 소유권/권한 검증이 없어, 다른 사용자의 데이터에 접근할 수 있습니다.",
-        ))
+        # 응답 JSON에서 소유자 필드(예: writer)를 뽑아, 두 계정 중 누구 소유인지 확인
+        owner = _extract_owner(resp_a) or _extract_owner(resp_b)
+
+        if owner in (user_a, user_b):
+            victim, attacker = (user_a, user_b) if owner == user_a else (user_b, user_a)
+            findings.append(make_finding(
+                check_name=CHECK_NAME,
+                url=page.url,
+                parameter="id",
+                payload=None,
+                severity=Severity.HIGH,
+                evidence=(
+                    f"리소스 소유자는 '{victim}'이지만, 다른 계정 '{attacker}'로도 "
+                    f"동일 리소스에 200으로 접근하여 소유자가 아닌 데이터를 열람함"
+                ),
+                description=(
+                    "객체 소유권 검증(BOLA/Broken Object Level Authorization)이 없어, "
+                    "로그인한 다른 사용자가 자신의 것이 아닌 타 계정 소유 데이터를 실제로 조회할 수 있습니다."
+                ),
+            ))
+        else:
+            # 응답이 JSON이 아니거나 소유자 필드를 못 찾은 경우: 소유권 비교는 불가하므로
+            # (기존과 동일하게) "권한 검증 없음으로 추정"만 기록해 오탐을 피한다.
+            findings.append(make_finding(
+                check_name=CHECK_NAME,
+                url=page.url,
+                parameter="id",
+                payload=None,
+                severity=Severity.HIGH,
+                evidence=(
+                    f"'{user_a}', '{user_b}' 두 계정 모두 동일 리소스에 200으로 접근 가능 "
+                    "(응답에서 소유자 필드를 확인하지 못해 소유권 비교는 불가, 권한 검증 없음으로 추정)"
+                ),
+                description="객체 ID에 대한 소유권/권한 검증이 없어, 다른 사용자의 데이터에 접근할 수 있습니다.",
+            ))
 
     return findings
