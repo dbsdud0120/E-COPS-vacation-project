@@ -40,23 +40,6 @@ from report_generator import (
 
 jinja_env = Environment(autoescape=True)
 
-
-def _safe_json(obj):
-    """
-    JSON을 <script> 태그 안에 직접(문자열이 아니라 리터럴로) 삽입할 때 쓰는 헬퍼.
-      1) Jinja autoescape가 " 를 &#34; 로 바꿔버리면 <script> 안에서는
-         HTML 엔티티가 디코딩되지 않아 문법 자체가 깨짐 -> 템플릿에서 |safe로
-         이스케이프를 건너뛰어야 하므로, 여기서 안전한 형태로 미리 만들어둔다.
-      2) 데이터 안에 "</script>" 문자열이 섞여 있으면 그 지점에서 스크립트
-         태그가 조기 종료되어 뒤 내용이 실행 가능한 HTML/스크립트로 해석될
-         수 있으므로 "</"를 "<\\/"로 이스케이프해 방지한다.
-    주의: 이 함수는 severity_labels_json 등 "JS 리터럴로 삽입되는" 값에만
-    쓴다. v.type, v.url처럼 HTML 본문에 텍스트로 들어가는 값은 절대
-    |safe를 붙이지 않고 Jinja의 기본 autoescape(HTML 이스케이프)를 그대로
-    사용해야 XSS 방지가 유지된다.
-    """
-    return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
-
 # Chart.js 라이브러리 전체를 인라인으로 내장 (CDN 의존 제거)
 _CHARTJS_PATH = Path(__file__).parent / "assets" / "chart.umd.js"
 CHARTJS_INLINE = _CHARTJS_PATH.read_text(encoding="utf-8") if _CHARTJS_PATH.exists() else ""
@@ -191,9 +174,9 @@ DASHBOARD_TEMPLATE = """
   </div>
 
   <script>
-    const severityLabels = {{ severity_labels_json | safe }};
-    const severityData = {{ severity_data_json | safe }};
-    const severityColors = {{ severity_colors_json | safe }};
+    const severityLabels = {{ severity_labels_json }};
+    const severityData = {{ severity_data_json }};
+    const severityColors = {{ severity_colors_json }};
 
     new Chart(document.getElementById('severityChart'), {
       type: 'doughnut',
@@ -208,8 +191,8 @@ DASHBOARD_TEMPLATE = """
       }
     });
 
-    const typeLabels = {{ type_labels_json | safe }};
-    const typeData = {{ type_data_json | safe }};
+    const typeLabels = {{ type_labels_json }};
+    const typeData = {{ type_data_json }};
 
     new Chart(document.getElementById('typeChart'), {
       type: 'bar',
@@ -291,11 +274,11 @@ def generate(json_path_str: str, out_prefix: str = "dashboard", guides_dir: str 
         severity_counts=dash["severity_counts"],
         colors=SEVERITY_COLOR,
         top_items=dash["top_items"],
-        severity_labels_json=_safe_json(SEVERITY_ORDER),
-        severity_data_json=_safe_json([dash["severity_counts"][s] for s in SEVERITY_ORDER]),
-        severity_colors_json=_safe_json([SEVERITY_COLOR[s] for s in SEVERITY_ORDER]),
-        type_labels_json=_safe_json(dash["type_labels"]),
-        type_data_json=_safe_json(dash["type_data"]),
+        severity_labels_json=json.dumps(SEVERITY_ORDER, ensure_ascii=False),
+        severity_data_json=json.dumps([dash["severity_counts"][s] for s in SEVERITY_ORDER]),
+        severity_colors_json=json.dumps([SEVERITY_COLOR[s] for s in SEVERITY_ORDER]),
+        type_labels_json=json.dumps(dash["type_labels"], ensure_ascii=False),
+        type_data_json=json.dumps(dash["type_data"]),
     )
 
     out_path = f"{out_prefix}.html"

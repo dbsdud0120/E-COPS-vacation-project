@@ -39,6 +39,12 @@ from jinja2 import Environment
 from weasyprint import HTML
 
 SEVERITY_ORDER = ["Critical", "High", "Medium", "Low", "Info"]
+# 발표용 등급 기준:
+# Critical: 인증 우회 또는 시스템 전체 장악 가능
+# High: 민감정보 노출 또는 권한 상승 가능
+# Medium: 사용자 상호작용이 필요한 공격
+# Low: 직접적 피해보다는 공격 가능성을 높이는 수준
+# Info: 즉각적인 위험은 없으나 보안 강화 참고가 필요한 수준
 SEVERITY_COLOR = {
     "Critical": "#E5484D",
     "High": "#F59E0B",
@@ -99,15 +105,15 @@ BUSINESS_IMPACT_MAP = {
         "compliance_note": "개인정보 유출 사고로 분류되어 국내 개인정보보호법(신고 의무·과징금) 또는 해외 이용자가 있다면 GDPR(전 세계 매출의 최대 4% 또는 2천만 유로 중 큰 금액이 상한) 적용 대상이 될 수 있습니다.",
     },
     "Reflected XSS": {
-        "business_risk": "공격자가 만든 링크를 사용자가 클릭하는 순간 세션이 탈취되거나 피싱 페이지로 유도될 수 있어, 계정 탈취로 인한 2차 피해와 사용자 신뢰 저하로 이어질 수 있습니다.",
+        "business_risk": "공격자가 만든 링크를 사용자가 클릭하는 순간 세션이 탈취되거나 Phishing Page로 유도될 수 있어, 계정 탈취로 인한 2차 피해와 사용자 신뢰 저하로 이어질 수 있습니다.",
         "compliance_note": "이 취약점을 통해 개인정보가 탈취되면, SQL Injection과 동일하게 개인정보 유출 규제(신고 의무·과징금) 대상이 될 수 있습니다.",
     },
     "Stored XSS": {
-        "business_risk": "악성 스크립트가 게시글 등에 영구 저장되어, 접속하는 모든 사용자에게 자동으로 실행됩니다. 한 명이 아니라 다수 사용자 세션이 동시에 탈취될 수 있어 파급 범위가 훨씬 큽니다.",
+        "business_risk": "악성 스크립트가 게시글 등에 영구 저장되어, 접속하는 모든 사용자에게 자동으로 실행됩니다. 다수 사용자의 세션이 탈취되면 계정에 대한 무단 접근과 민감정보 노출로 이어질 수 있어 피해 범위가 커집니다.",
         "compliance_note": "다수 사용자를 대상으로 한 대규모 사고로 이어질 경우, 감독기관에 대한 신고 의무 및 과징금 리스크가 커집니다.",
     },
     "File Upload": {
-        "business_risk": "서버 자체를 장악당할 수 있어(웹쉘 업로드), 시스템 안의 모든 데이터는 물론 같은 네트워크의 다른 시스템까지 위협받고, 서비스 전체가 중단될 수 있습니다.",
+        "business_risk": "서버 자체를 장악당할 수 있어(Web Shell 업로드), 시스템 안의 모든 데이터는 물론 같은 네트워크의 다른 시스템까지 위협받고, 서비스 전체가 중단될 수 있습니다.",
         "compliance_note": "시스템 전체 장악은 '중대한 침해사고'로 분류될 가능성이 높아, 과징금과 별개로 안전조치 의무 위반에 따른 책임 소지가 있습니다.",
     },
     "Directory Traversal": {
@@ -127,11 +133,11 @@ BUSINESS_IMPACT_MAP = {
         "compliance_note": "인증 우회는 가장 심각한 안전조치 위반 사례 중 하나로 간주되어, 과징금 산정 시 최상위 가중 요소가 될 가능성이 있습니다.",
     },
     "Missing Rate Limiting": {
-        "business_risk": "무차별 대입 공격, 대량 계정 탈취 시도, 서비스 거부(DoS) 공격에 취약해져 서비스 가용성이 저하되고, 이는 매출 손실로 직결될 수 있습니다.",
+        "business_risk": "Brute-force Attack, 대량 계정 탈취 시도, 서비스 거부(DoS) 공격에 취약해져 서비스 가용성이 저하되고, 이는 매출 손실로 직결될 수 있습니다.",
         "compliance_note": "직접적인 개인정보 유출은 아니지만, 이 취약점이 다른 공격(예: Broken Authentication)의 성공률을 높이는 촉매 역할을 합니다.",
     },
     "Security Headers": {
-        "business_risk": "단독으로는 치명적이지 않지만, 클릭재킹·XSS 등 다른 공격의 성공 가능성과 피해 범위를 키우는 '기본 방어선 부재' 상태입니다.",
+        "business_risk": "단독으로는 치명적이지 않지만, Clickjacking·XSS 등 다른 공격의 성공 가능성과 피해 범위를 키우는 '기본 방어선 부재' 상태입니다.",
         "compliance_note": "ISMS-P 등 보안 인증 심사의 기본 점검 항목으로, 미비할 경우 인증 심사에 불리하게 작용할 수 있습니다.",
     },
 }
@@ -142,7 +148,7 @@ DEFAULT_BUSINESS_IMPACT = {
 }
 
 
-# 이미 Title Case로 들어와도 그대로 통과시키기 위한 정규화(소문자 -> 정식 표기)
+# 이미 표준 표기로 들어와도 그대로 통과시키기 위한 정규화(대소문자 -> 정식 표기)
 TYPE_NORMALIZE_MAP_LOWER_KEYS = {k.lower(): v for k, v in TYPE_NORMALIZE_MAP.items()}
 for v in list(TYPE_NORMALIZE_MAP.values()):
     TYPE_NORMALIZE_MAP_LOWER_KEYS.setdefault(v.lower(), v)
@@ -286,9 +292,8 @@ HTML_TEMPLATE = """
 <meta charset="UTF-8">
 <title>{{ report_title }}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
   body {
-    font-family: "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
+    font-family: "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
     background: #F5F6FA;
     color: #1F2430;
     margin: 0;
