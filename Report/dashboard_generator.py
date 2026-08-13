@@ -40,6 +40,11 @@ from report_generator import (
 
 jinja_env = Environment(autoescape=True)
 
+def _safe_json(obj):
+    """Serialize JSON for direct insertion into a <script> block."""
+    return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
+
+
 # Chart.js 라이브러리 전체를 인라인으로 내장 (CDN 의존 제거)
 _CHARTJS_PATH = Path(__file__).parent / "assets" / "chart.umd.js"
 CHARTJS_INLINE = _CHARTJS_PATH.read_text(encoding="utf-8") if _CHARTJS_PATH.exists() else ""
@@ -174,9 +179,9 @@ DASHBOARD_TEMPLATE = """
   </div>
 
   <script>
-    const severityLabels = {{ severity_labels_json }};
-    const severityData = {{ severity_data_json }};
-    const severityColors = {{ severity_colors_json }};
+    const severityLabels = {{ severity_labels_json | safe }};
+    const severityData = {{ severity_data_json | safe }};
+    const severityColors = {{ severity_colors_json | safe }};
 
     new Chart(document.getElementById('severityChart'), {
       type: 'doughnut',
@@ -191,8 +196,8 @@ DASHBOARD_TEMPLATE = """
       }
     });
 
-    const typeLabels = {{ type_labels_json }};
-    const typeData = {{ type_data_json }};
+    const typeLabels = {{ type_labels_json | safe }};
+    const typeData = {{ type_data_json | safe }};
 
     new Chart(document.getElementById('typeChart'), {
       type: 'bar',
@@ -274,11 +279,11 @@ def generate(json_path_str: str, out_prefix: str = "dashboard", guides_dir: str 
         severity_counts=dash["severity_counts"],
         colors=SEVERITY_COLOR,
         top_items=dash["top_items"],
-        severity_labels_json=json.dumps(SEVERITY_ORDER, ensure_ascii=False),
-        severity_data_json=json.dumps([dash["severity_counts"][s] for s in SEVERITY_ORDER]),
-        severity_colors_json=json.dumps([SEVERITY_COLOR[s] for s in SEVERITY_ORDER]),
-        type_labels_json=json.dumps(dash["type_labels"], ensure_ascii=False),
-        type_data_json=json.dumps(dash["type_data"]),
+        severity_labels_json=_safe_json(SEVERITY_ORDER),
+        severity_data_json=_safe_json([dash["severity_counts"][s] for s in SEVERITY_ORDER]),
+        severity_colors_json=_safe_json([SEVERITY_COLOR[s] for s in SEVERITY_ORDER]),
+        type_labels_json=_safe_json(dash["type_labels"]),
+        type_data_json=_safe_json(dash["type_data"]),
     )
 
     out_path = f"{out_prefix}.html"
