@@ -114,7 +114,9 @@ def run_scan_job(job_id, url):
         scan_jobs[job_id]["status"] = "Error"
         scan_jobs[job_id]["error"] = str(e)
 
-
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"}), 200
 
 # 메인 페이지
 @app.route("/")
