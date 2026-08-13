@@ -13,6 +13,9 @@ DASHBOARD_GENERATOR = os.path.join(BASE_DIR, "dashboard_generator.py")
 SECURITY_POLICY_CHECKER = os.path.join(BASE_DIR, "security_policy_checker.py")
 POLICY_REPORT_GENERATOR = os.path.join(BASE_DIR, "policy_report_generator.py")
 
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
 
 @app.route("/report", methods=["POST"])
 def report():
