@@ -9,15 +9,21 @@ check_name/출력 이름은 Report의 mitigation_guide.md 표기에 맞춰 "brok
 통일함. 객체 단위 권한 검증 누락은 이미 checks/idor.py가 다루고 있어 중복되지 않도록 범위를 분리함.
 
 검사 항목 (mitigation_guide.md의 "로그인 시도 횟수 제한, 세션 토큰 무작위성 강화, MFA 도입" 기준):
-  1. 세션 쿠키 보안 속성(HttpOnly / Secure / SameSite) 누락 여부
-  2. 세션 토큰(쿠키 값) 예측 가능성 - 같은 계정으로 여러 번 로그인해서 값 비교
+  1. 세션 쿠키 보안 속성(HttpOnly / Secure / SameSite) 누락 여부 (/login)
+  2. 세션 토큰(쿠키 값) 예측 가능성 - 같은 계정으로 여러 번 로그인해서 값 비교 (/login)
   3. 로그인 실패 횟수 제한(계정 잠금) 여부 - 틀린 비밀번호를 여러 번 시도한 뒤에도
-     정상 로그인이 아무 제약 없이 그대로 성공하는지 확인
+     정상 로그인이 아무 제약 없이 그대로 성공하는지 확인 (/login)
+  4. Broken Authentication (비밀번호 미검증) - 존재하는 계정의 username은 맞지만
+     password는 고의로 틀리게 보냈는데도 로그인이 성공하는지 확인 (/vuln/broken-auth)
 
-⚠️ auth.py의 LOGIN_PATH(/login) 페이지에서만 동작 (로그인 페이지가 아니면 검사하지 않음 ->
-   계정당 반복 실행 방지).
+⚠️ 이 Backend는 인증 관련 취약점을 두 엔드포인트로 분리해 구현했다:
+   - /login: 로그인 실패 횟수 제한(계정 잠금)은 있지만 비밀번호 검증 자체는 정상 동작.
+     위 1~3번 검사가 이 경로에서만 동작한다 (계정당 반복 실행 방지).
+   - /vuln/broken-auth: 존재하는 username만 맞으면 password가 틀려도 로그인 성공을
+     반환하도록 의도적으로 구현됨. 위 4번 검사가 이 경로에서만 동작한다.
 ⚙️ payloads/broken_authentication.txt 형식 (idor.txt와 동일): username:password
-   실제 로그인 가능한 테스트 계정이 최소 1개 있어야 검사가 동작함.
+   실제 로그인 가능한 테스트 계정이 최소 1개 있어야 검사가 동작함 (/login, /vuln/broken-auth
+   양쪽 다 이 계정을 사용).
 
 ⚠️ 계정 공유/잠금 관련 주의:
    payloads/broken_authentication.txt는 idor.txt 계정을 재사용해도 되도록 문서화되어
@@ -40,6 +46,9 @@ from checks.base import Finding, Severity, make_finding
 from auth import LOGIN_PATH, login
 
 CHECK_NAME = "broken_authentication"
+
+# 의도적으로 비밀번호 검증을 생략한 엔드포인트 (Backend/app.py: username 존재만 확인)
+VULN_BROKEN_AUTH_PATH = "/vuln/broken-auth"
 
 FAILED_ATTEMPTS = 5   # 잠금 여부 확인 전에 보낼 "틀린 비밀번호" 시도 횟수
 LOGIN_REPEAT = 3      # 세션 토큰 비교를 위해 반복 로그인할 횟수
@@ -87,8 +96,13 @@ def _session_cookie_flags(resp) -> list[str]:
 def run(session, page, payloads: list[str]) -> list[Finding]:
     findings: list[Finding] = []
 
-    if urlparse(page.url).path.rstrip("/") != LOGIN_PATH:
-        return findings  # 로그인 페이지가 아니면 검사 대상 아님
+    path = urlparse(page.url).path.rstrip("/")
+
+    if path == VULN_BROKEN_AUTH_PATH:
+        return _check_vuln_broken_auth(session, page, payloads)
+
+    if path != LOGIN_PATH:
+        return findings  # 로그인 페이지도, /vuln/broken-auth도 아니면 검사 대상 아님
 
     accounts = _parse_accounts(payloads)
     if not accounts:
@@ -190,6 +204,67 @@ def run(session, page, payloads: list[str]) -> list[Finding]:
         _wait_for_unlock_and_restore(session, page.url, username, password)
 
     return findings
+
+
+def _check_vuln_broken_auth(session, page, payloads: list[str]) -> list[Finding]:
+    """
+    /vuln/broken-auth: 존재하는 계정의 username은 그대로 쓰고 password만 고의로 틀리게
+    보내서, 그래도 로그인 성공 응답이 오는지 확인한다 (Backend가 비밀번호를 검증하지
+    않고 username 존재 여부만 확인하도록 의도적으로 구현되어 있음).
+    """
+    findings: list[Finding] = []
+
+    accounts = _parse_accounts(payloads)
+    if not accounts:
+        return findings  # 테스트 계정 없음 (payloads/broken_authentication.txt 확인)
+
+    username, password = accounts[0]
+    wrong_password = password + "_wrong"
+
+    try:
+        resp = session.post(
+            page.url,
+            data={"username": username, "password": wrong_password},
+            timeout=5,
+        )
+    except Exception:
+        return findings
+
+    if _looks_like_login_success(resp):
+        findings.append(make_finding(
+            check_name=CHECK_NAME,
+            url=page.url,
+            parameter="password",
+            payload=None,
+            severity=Severity.CRITICAL,
+            evidence=(
+                f"존재하는 계정('{username}')의 비밀번호를 고의로 틀리게 보냈는데도 "
+                "로그인 성공 응답을 받음"
+            ),
+            description=(
+                "비밀번호를 검증하지 않고 아이디 존재 여부만으로 로그인이 승인되어, "
+                "비밀번호를 몰라도 계정이 존재한다는 사실만 알면 로그인할 수 있습니다 "
+                "(Broken Authentication)."
+            ),
+        ))
+
+    return findings
+
+
+def _looks_like_login_success(resp) -> bool:
+    """응답이 로그인 성공을 의미하는지 판단.
+    Backend 응답이 JSON({"success": true/false, ...})이므로, 문구가 바뀌어도 덜 깨지도록
+    success 필드를 우선 확인한다. JSON이 아니거나 success 필드가 없으면 "성공" 문자열
+    포함 여부로 fallback한다."""
+    try:
+        data = resp.json()
+    except ValueError:
+        data = None
+
+    if isinstance(data, dict) and "success" in data:
+        return bool(data["success"])
+
+    return "성공" in resp.text
 
 
 def _wait_for_unlock_and_restore(session, login_url: str, username: str, password: str) -> None:

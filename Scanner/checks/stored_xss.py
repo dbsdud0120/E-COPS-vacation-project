@@ -22,6 +22,7 @@ import uuid
 from urllib.parse import urljoin, urlparse
 
 from checks.base import Finding, Severity, make_finding
+from safety import is_unsafe_mutation_target
 
 CHECK_NAME = "stored_xss"
 
@@ -55,7 +56,13 @@ def _revisit_targets(page_url: str, form_action: str) -> list[str]:
 def run(session, page, payloads: list[str]) -> list[Finding]:
     findings: list[Finding] = []
 
-    post_forms = [f for f in page.forms if f.method == "POST"]
+    post_forms = [
+        f for f in page.forms
+        if f.method == "POST" and not is_unsafe_mutation_target(f.action)
+    ]
+    # is_unsafe_mutation_target로 제외되는 form: /posts/edit/<id> 등 실제 게시글을
+    # 수정하는 form, 또는 /signup처럼 실제 계정을 생성해 이후 다른 페이지 검사를
+    # 오염시킬 수 있는 form (글 작성 자체는 /posts의 별도 form에서 이미 테스트됨).
     if not post_forms:
         return findings
 

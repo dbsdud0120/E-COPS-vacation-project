@@ -24,6 +24,7 @@ from __future__ import annotations
 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 from checks.base import Finding, Severity, make_finding
+from safety import is_unsafe_mutation_target
 
 CHECK_NAME = "sql_injection"
 
@@ -155,6 +156,11 @@ def run(session, page, payloads: list[str]) -> list[Finding]:
         if form.method != "POST":
             continue
         if not form.inputs:
+            continue
+        if is_unsafe_mutation_target(form.action):
+            # /posts/edit/<id> 등 실제 데이터를 수정하는 form, 또는 /signup처럼 실제
+            # 계정을 생성해 이후 다른 페이지 검사를 오염시킬 수 있는 form. 건너뛴다
+            # (IDOR의 GET 기반 조회 비교는 이 URL을 계속 사용하며, 여기 영향 없음).
             continue
 
         for target_field in form.inputs:
