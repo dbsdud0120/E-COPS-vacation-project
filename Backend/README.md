@@ -357,6 +357,32 @@ docker compose up -d --build
 
 ---
 
+### 환경변수 설정
+
+Docker Compose 실행 전에 프로젝트 루트에서 `.env.example`을 `.env`로 복사합니다.
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+macOS/Linux:
+
+```bash
+cp .env.example .env
+```
+
+생성한 `.env`에서 비밀번호와 비밀키를 실행 환경에 맞게 설정한 후 Docker Compose를 실행합니다.
+
+```bash
+docker compose up -d --build
+```
+
+`.env`에는 실제 데이터베이스 비밀번호와 비밀키가 포함될 수 있으므로 Git에 커밋하지 않습니다. `.env.example`은 필요한 환경변수를 안내하기 위한 예시 파일이며 실제 비밀값을 포함하지 않습니다.
+
+---
+
 ## 보안 설계 포인트
 
 * 비밀번호를 평문이 아닌 Werkzeug 해시값으로 저장
