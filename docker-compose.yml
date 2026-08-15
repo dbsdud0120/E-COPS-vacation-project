@@ -41,6 +41,7 @@ services:
       - "5001"
     volumes:
       - scanner-results:/app/results
+      - ./Backend/swagger.yaml:/app/swagger.yaml:ro
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health', timeout=2)"]
       interval: 3s
@@ -79,6 +80,7 @@ services:
       - scanner-results:/app/results
       - ./Scanner:/app/scanner
       - ./Report:/app/report
+      - ./Backend/swagger.yaml:/app/swagger.yaml:ro
     depends_on:
       backend:
         condition: service_healthy
