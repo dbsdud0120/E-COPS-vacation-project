@@ -33,32 +33,72 @@ Security Scanner Platform은 취약한 웹 애플리케이션과 REST API를 자
 E-COPS-vacation-project-main/
 ├── docker-compose.yml          # 서비스 컨테이너 오케스트레이션 및 포트/Expose 설정
 ├── nginx.conf                  # Nginx 프록시 설정
+├── .env.example                 # 환경변수 템플릿 (실행 전 .env로 복사 필요)
+├── .gitignore
 ├── Backend/                    # 진단 대상 웹 앱
-│   ├── app.py                  # Flask 메인 서버
-│   ├── init_db.py              # 데이터베이스 초기화
-│   ├── upload.py               # 파일 업로드 핸들러
-│   ├── swagger.yaml            # API 문서
-│   └── templates/              # HTML 템플릿
+│   ├── app.py                  # Flask 애플리케이션 진입점
+│   ├── upload.py               # 정상/취약 파일 업로드 기능
+│   ├── init_db.py              # MySQL 테이블 및 테스트 데이터 초기화
+│   ├── swagger.yaml            # OpenAPI 명세
+│   ├── entrypoint.sh           # DB 초기화 후 Flask 실행
+│   ├── Dockerfile              # Backend 컨테이너 이미지 설정
+│   ├── requirements.txt        # Python 패키지 목록
+│   ├── templates/              # HTML 템플릿
+│   ├── uploads/
+│   │   ├── safe/                # 정상 업로드 파일 저장
+│   │   └── vuln/                # 취약 업로드 파일 저장
+│   └── README.md
 ├── Scanner/                    # 취약점 스캐너 엔진 → 상세: Scanner/README.md
 │   ├── scanner.py              # 메인 진입점 (CLI), 전체 파이프라인 조립/실행
 │   ├── crawler.py              # requests + BeautifulSoup 기반 크롤러
-│   ├── auth.py                 # 로그인 세션 헬퍼
-│   ├── swagger_seed.py         # swagger 문서 기반 크롤링 시드 보완
-│   ├── checks/                 # 취약점별 진단 모듈 (SQLi, XSS, IDOR 등 총 10종)
+│   ├── auth.py                 # 로그인 세션 헬퍼 (idor, broken_authentication 등이 사용)
+│   ├── swagger_seed.py         # swagger.yaml/json에서 링크로 못 찾는 라우트(/vuln/* 등)를 시드로 추가
+│   ├── checks/                 # 취약점별 진단 모듈 (총 10종)
+│   │   ├── __init__.py               # 실행할 check 함수들을 등록하는 레지스트리
+│   │   ├── base.py                    # Finding, Severity, VULN_TYPE_MAP 등 공통 데이터 구조
+│   │   ├── sql_injection.py           # 에러 기반 SQLi 탐지
+│   │   ├── xss.py                      # 반사형 XSS 탐지
+│   │   ├── directory_traversal.py      # 경로 조작 탐지
+│   │   ├── stored_xss.py                # 저장형 XSS 탐지
+│   │   ├── idor.py                       # 권한 검증 누락 / IDOR 탐지
+│   │   ├── security_headers.py           # 보안 헤더 누락 탐지
+│   │   ├── file_upload.py                 # 파일 업로드 확장자 검증 누락 탐지
+│   │   ├── jwt_verification.py             # JWT 서명 검증 누락 탐지
+│   │   ├── broken_authentication.py         # 세션/로그인 인증 취약점 탐지
+│   │   └── rate_limiting.py                  # 요청 횟수 제한 누락 탐지
 │   ├── payloads/                # 취약점 진단용 페이로드 목록
-│   └── results/                 # 스캔 결과 JSON (scan_<타임스탬프>.json, latest.json)
+│   │   ├── sql_injection.txt
+│   │   ├── xss.txt
+│   │   ├── directory_traversal.txt
+│   │   ├── stored_xss.txt                # 참고용 (실제 payload는 코드에서 동적 생성)
+│   │   ├── idor.txt                       # 테스트 계정 목록 (username:password)
+│   │   ├── security_headers.txt           # 빈 파일 (payload 불필요)
+│   │   ├── file_upload.txt                 # 업로드 시도할 위험한 파일명 목록
+│   │   ├── missing_jwt_verification.txt     # 빈 파일 (응답에서 토큰을 직접 찾음)
+│   │   ├── broken_authentication.txt         # 테스트 계정 (username:password)
+│   │   └── missing_rate_limiting.txt          # 빈 파일 (payload 불필요)
+│   ├── results/                 # 스캔 결과 JSON (scan_<타임스탬프>.json, latest.json, git 추적 안 함)
+│   └── requirements.txt
 ├── Report/                     # 리포트 및 대시보드 생성기 → 상세: Report/README.md
 │   ├── report_generator.py     # 취약점 상세 리포트 생성 (HTML + PDF)
 │   ├── dashboard_generator.py  # 등급별/유형별 요약 대시보드 생성 (Chart.js)
-│   ├── security_policy_checker.py  # 보안 정책 자동 점검 (HTTPS, Security Header, CORS, JWT 만료 등)
-│   ├── policy_report_generator.py  # 정책 점검 결과 HTML 렌더링
-│   ├── report_server.py        # Platform과 통신하는 Flask API 서버 (5002번 포트)
+│   ├── security_policy_checker.py  # 대상 서버에 실제 요청을 보내 보안 정책 자동 점검
+│   ├── policy_report_generator.py  # security_policy_checker.py 결과를 HTML로 렌더링
+│   ├── report_server.py        # 위 스크립트들을 API로 호출하는 Flask 서버 (5002번 포트)
 │   ├── mitigation_guide.md     # 취약점 유형별 대응 방안표
-│   └── severity_guide.md       # 위험도(Critical~Info) 분류 기준표
+│   ├── severity_guide.md       # 위험도(Critical~Info) 분류 기준표
+│   ├── requirements.txt        # 의존 패키지 목록
+│   ├── assets/
+│   │   ├── logo_base64.txt      # 팀 로고 (base64 인라인 임베드용)
+│   │   └── chart.umd.js          # Chart.js 라이브러리 (CDN 의존 제거용 인라인 내장)
+│   └── sample_result.json      # 로컬 테스트용 샘플 스캔 결과 (실제 제출용 X)
 └── Platform/                   # 오케스트레이터 / 외부 노출 접점 → 상세: Platform/README.md
     ├── app.py                  # 스캔 요청 접수, Scanner·Report 호출, 진행 상태 관리
-    ├── Dockerfile
-    └── templates/               # index.html (요청 페이지), result.html (진행률/결과 페이지)
+    ├── Dockerfile              # Platform 컨테이너 이미지 정의
+    ├── requirements.txt        # Python 의존성 목록
+    └── templates/
+        ├── index.html          # 스캔 요청 메인 페이지
+        └── result.html         # 스캔 진행률 및 결과 다운로드 페이지
 
 각 서비스의 세부 구현(엔드포인트, 실행 방법, 내부 로직)은 해당 디렉토리의 README를 참고하세요:
 Platform/README.md · Scanner/README.md · Report/README.md · Backend/README.md
@@ -164,7 +204,17 @@ Docker Compose 환경을 통해 전체 시스템(Platform, Scanner, Report, Targ
 ### 1. 전제 조건 (Prerequisites)
 - [Docker](https://www.docker.com/) 및 [Docker Compose](https://docs.docker.com/compose/) 설치 필수
 
-### 2. 컨테이너 빌드 및 실행
+### 2. 환경변수 설정 (.env)
+`.env` 파일은 민감 정보(DB 비밀번호 등)를 포함하므로 저장소에 직접 커밋하지 않습니다. 대신 `.env.example`을 템플릿으로 제공하므로, 최초 실행 전 아래와 같이 복사한 뒤 필요한 값을 채워주세요.
+
+```bash
+# 프로젝트 루트에서 실행
+cp .env.example .env
+```
+
+`.env` 파일 생성 없이 `docker-compose up`을 실행하면 컨테이너가 정상적으로 기동되지 않을 수 있으니, 반드시 이 단계를 먼저 진행해야 합니다.
+
+### 3. 컨테이너 빌드 및 실행
 프로젝트 루트 디렉토리에서 아래 명령어를 실행합니다.
 
 ```bash
@@ -206,7 +256,7 @@ docker-compose ps
    - 이러한 항목은 **Manual(수동 확인 필요)** 상태로 분류되며, 보안 담당자가 직접 확인 및 검토해야 합니다.
 
 3. **크롤링 및 인증 세션 제약**
-   - 현재 크롤러(crawler.py)는 requests + BeautifulSoup 기반으로 동작하며, 자바스크립트 렌더링이 필요한 SPA(Single Page Application) 페이지의 일부 깊은 경로는 크롤링      에서 누락될 수 있습니다. 이런 라우트는 Swagger 문서를 시드로 병행 제공(--swagger 옵션)해 보완할 수 있습니다.
+   - 현재 크롤러(crawler.py)는 requests + BeautifulSoup 기반으로 동작하며, 자바스크립트 렌더링이 필요한 SPA(Single Page Application) 페이지의 일부 깊은 경로는 크롤링에서 누락될 수 있습니다. 이런 라우트는 Swagger 문서를 시드로 병행 제공(--swagger 옵션)해 보완할 수 있습니다.
    - 폼 로그인 자동화가 설정되지 않은 경우, 로그인 이후의 비공개 엔드포인트에 대한 자동 진단 범위가 제한될 수 있습니다.
 
 4. **로그인 계정 잠금(Rate Limit) 및 재스캔 대기 시간 안내**
