@@ -1,26 +1,36 @@
 """
 checks/xss.py
 --------------
-가장 기본적인 "반사형(Reflected) XSS" 탐지 틀.
+"반사형(Reflected) XSS"만 담당하는 탐지 틀.
 
 동작 방식:
-  1. 쿼리 파라미터에 고유 마커가 포함된 payload를 삽입해 요청
-  2. 응답 HTML에 payload가 "이스케이프 없이" 그대로 반사되는지 확인
+  1. 크롤링된 페이지 URL의 쿼리 파라미터에 고유 마커가 포함된 payload를 삽입해 요청
+  2. 응답 HTML에 payload가 "이스케이프 없이, 실행 가능한 HTML 문맥으로" 그대로
+     반사되는지 확인 (checks/xss_context.py의 is_exploitable_reflection())
   3. 그대로 반사되면 Finding 생성
 
-주의:
-  - 단순 문자열 포함 여부만 체크하는 매우 기초적인 방식이다.
-  - 개선 여지:
-      a) BeautifulSoup으로 실제 <script> 컨텍스트/속성 컨텍스트 반사 여부 구분
-      b) DOM 기반 XSS는 별도 headless 브라우저(Playwright) 검사로 분리
-      c) 저장형(Stored) XSS는 stored_xss.py에서 "제출 후 다른 페이지 재방문" 시나리오로 별도 구현됨
+⚠️ 범위 (이 프로젝트의 vulnerable-backend 기준):
+   이 check은 GET 쿼리 파라미터 기반 반사형 XSS만 다룬다(예: /vuln/comment?text=...).
+   POST form은 다루지 않는다 — 이 Backend에는 "POST 응답에 입력값이 즉시(DB 저장 없이)
+   그대로 반사되는" POST form이 없고, 유일하게 입력값을 되돌려 보여주는 POST form인
+   /posts는 DB에 저장한 뒤 /vuln/posts에서 출력되는 저장형(Stored) XSS 케이스라
+   stored_xss.py가 전담한다. 만약 xss.py가 /posts 같은 form에도 payload마다
+   실제로 POST를 보내면, 그 자체로 (취약점 발견 여부와 무관하게) 게시글이 계속
+   쌓이는 부작용이 생긴다 — 반사형 검사를 위해 굳이 데이터를 남길 필요는 없으므로
+   POST form 검사는 하지 않는다.
+   두 check 간 역할 중복(같은 form에 두 번 payload를 제출하는 것)도 이렇게 없앤다.
+
+개선 여지 (이 프로젝트 범위 밖):
+  - DOM 기반 XSS는 별도 headless 브라우저(Playwright) 검사로 분리
+  - 범용 스캐너로 확장한다면 "저장 없이 즉시 반사되는 POST form"을 별도로
+    구분해서 다시 다뤄야 함
 """
 
 from __future__ import annotations
 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 from checks.base import Finding, Severity, make_finding
-from safety import is_unsafe_mutation_target
+from checks.xss_context import is_exploitable_reflection
 
 CHECK_NAME = "xss"
 
@@ -33,9 +43,12 @@ def _inject_query_param(url: str, param: str, payload: str) -> str:
     return urlunparse(parsed._replace(query=new_query))
 
 
-def _is_reflected_unescaped(response_text: str, payload: str) -> bool:
-    """payload 원문이 이스케이프(예: &lt;) 없이 그대로 응답에 포함되는지 확인"""
-    return payload in response_text
+def _is_reflected_unescaped(response, payload: str) -> bool:
+    """payload 원문이 이스케이프 없이, 그리고 실제로 실행 가능한 HTML 문맥에
+    반영되어 응답에 포함되는지 확인. (단순 substring 매칭이 아님 -> FP 방지)"""
+    return is_exploitable_reflection(
+        response.text, payload, content_type=response.headers.get("Content-Type")
+    )
 
 
 def run(session, page, payloads: list[str]) -> list[Finding]:
@@ -44,7 +57,7 @@ def run(session, page, payloads: list[str]) -> list[Finding]:
     parsed = urlparse(page.url)
     query_params = dict(parse_qsl(parsed.query))
 
-    # 1) URL 쿼리 파라미터 검사
+    # URL 쿼리 파라미터 검사 (반사형 XSS)
     for param_name in query_params:
         for payload in payloads:
             test_url = _inject_query_param(page.url, param_name, payload)
@@ -53,52 +66,16 @@ def run(session, page, payloads: list[str]) -> list[Finding]:
             except Exception:
                 continue
 
-            if _is_reflected_unescaped(resp.text, payload):
+            if _is_reflected_unescaped(resp, payload):
                 findings.append(make_finding(
                     check_name=CHECK_NAME,
                     url=test_url,
                     parameter=param_name,
                     payload=payload,
                     severity=Severity.MEDIUM,
-                    evidence="입력한 payload가 이스케이프 없이 응답에 그대로 반사됨",
+                    evidence="입력한 payload가 이스케이프 없이, 실행 가능한 HTML 문맥(태그/이벤트 핸들러/URI 속성)에 그대로 반사됨",
                     description="입력값이 HTML에 그대로 출력되어 반사형 XSS로 이어질 가능성이 있습니다.",
                 ))
                 break
-
-    # 2) form input 검사 (POST 폼)
-    # 필드 하나씩 payload를 넣고 나머지 필수 필드는 더미 값으로 채워서 실제로 전송한 뒤,
-    # "그 요청의 응답 자체"에 payload가 이스케이프 없이 그대로 반사되는지 확인한다.
-    # (저장 후 다른 페이지에서 나타나는 저장형 XSS는 stored_xss.py가 별도로 담당)
-    for form in page.forms:
-        if form.method != "POST":
-            continue
-        if not form.inputs:
-            continue
-        if is_unsafe_mutation_target(form.action):
-            # /posts/edit/<id> 등 실제 데이터를 수정하는 form, 또는 /signup처럼 실제
-            # 계정을 생성해 이후 다른 페이지 검사를 오염시킬 수 있는 form. 건너뛴다.
-            continue
-
-        for target_field in form.inputs:
-            for payload in payloads:
-                data = {name: "test" for name in form.inputs}
-                data[target_field] = payload
-
-                try:
-                    resp = session.post(form.action, data=data, timeout=5)
-                except Exception:
-                    continue
-
-                if _is_reflected_unescaped(resp.text, payload):
-                    findings.append(make_finding(
-                        check_name=CHECK_NAME,
-                        url=form.action,
-                        parameter=target_field,
-                        payload=payload,
-                        severity=Severity.MEDIUM,
-                        evidence="입력한 payload가 POST 응답에 이스케이프 없이 그대로 반사됨",
-                        description="입력값이 HTML에 그대로 출력되어 반사형 XSS로 이어질 가능성이 있습니다.",
-                    ))
-                    break  # 이 필드는 이미 취약점 확인, 다음 payload는 생략
 
     return findings

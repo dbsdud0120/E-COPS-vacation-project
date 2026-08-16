@@ -45,13 +45,26 @@ RESULTS_DIR = os.environ.get(
 
 
 def load_payloads(check_name: str) -> list[str]:
-    """payloads/<check_name>.txt 를 읽어 줄 단위 리스트로 반환"""
+    """payloads/<check_name>.txt 를 읽어 줄 단위 리스트로 반환
+
+    빈 줄과 '#'으로 시작하는 주석 줄은 제외한다. (예: file_upload.txt,
+    idor.txt, broken_authentication.txt 등은 사용법 설명을 '#' 주석으로
+    파일 맨 위에 적어두는데, 이 필터링이 없으면 주석 줄 자체가 payload로
+    취급되어 실제 payload가 아닌 문자열로 요청을 보내는 문제가 있었음.)
+    """
     path = os.path.join(PAYLOADS_DIR, f"{check_name}.txt")
     if not os.path.exists(path):
         print(f"[scanner] 경고: payload 파일 없음 -> {path} (빈 목록으로 진행)")
         return []
+    payloads = []
     with open(path, "r", encoding="utf-8") as f:
-        return [line.rstrip("\n") for line in f if line.strip()]
+        for line in f:
+            line = line.rstrip("\n")
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            payloads.append(line)
+    return payloads
 
 
 def parse_args():

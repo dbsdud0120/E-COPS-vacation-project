@@ -22,6 +22,7 @@ import uuid
 from urllib.parse import urljoin, urlparse
 
 from checks.base import Finding, Severity, make_finding
+from checks.xss_context import is_exploitable_reflection
 from safety import is_unsafe_mutation_target
 
 CHECK_NAME = "stored_xss"
@@ -92,18 +93,26 @@ def run(session, page, payloads: list[str]) -> list[Finding]:
                 except Exception:
                     continue
 
-                if payload in revisit.text:
+                # payload가 재조회 응답에 이스케이프 없이 '포함'되는지만 보지 않고,
+                # 실제로 실행 가능한 문맥(진짜 <script> 노드 등)에 저장·출력됐는지까지
+                # 확인한다. (예: title 필드처럼 같은 페이지에서 autoescape되는 필드는
+                # marker가 그대로 보여도 &lt;script&gt;로 escape된 텍스트일 뿐 실행되지
+                # 않으므로 여기서 걸러짐)
+                if is_exploitable_reflection(
+                    revisit.text, payload, content_type=revisit.headers.get("Content-Type")
+                ):
                     findings.append(make_finding(
                         check_name=CHECK_NAME,
                         url=form.action,
                         parameter=target_field,
                         payload=payload,
                         severity=Severity.HIGH,
-                        evidence=f"제출한 스크립트가 '{revisit_url}' 재조회 시 이스케이프 없이 그대로 노출됨 (marker={marker})",
+                        evidence=f"제출한 스크립트가 '{revisit_url}' 재조회 시 이스케이프 없이, 실행 가능한 <script> 문맥으로 그대로 노출됨 (marker={marker})",
                         description="입력값이 DB에 저장된 뒤 이스케이프 없이 다시 출력되어, 페이지를 열람하는 모든 사용자에게 스크립트가 실행될 수 있습니다.",
                     ))
                     break  # 한 필드당 1건만 기록 (여러 확인 페이지에 중복 기록 방지)
-            # payload 자체는 없지만 marker(원문 문자열)만 이스케이프된 채 보인다면
-            # "저장은 되지만 이스케이프도 됨" = 취약하지 않은 정상 케이스라 별도 기록하지 않음
+            # payload 자체는 없거나(이스케이프됨), 문자열은 남아있어도 실행되지 않는
+            # 문맥(예: autoescape된 일반 텍스트 위치)이라면 "저장은 되지만 취약하지
+            # 않은 정상 케이스"라 별도 기록하지 않음
 
     return findings
