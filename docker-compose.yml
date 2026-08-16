@@ -4,83 +4,118 @@ services:
 
   # 취약 웹 서비스 및 REST API
   backend:
+    # backend 폴더의 Dockerfile을 이용하여 이미지 생성
     build:
       context: ./Backend
+
+    # 컨테이너 이름
     container_name: vulnerable-backend
-    restart: unless-stopped
+
+    # 내부 네트워크에서만 접근 가능 (외부 직접 노출 X, nginx/scanner를 통해서만 접근)
     expose:
       - "5000"
+
+    # 환경 변수
     environment:
       FLASK_ENV: development
       MYSQL_HOST: db
-      MYSQL_DATABASE: security_db
-      MYSQL_USER: security
-      MYSQL_PASSWORD: security123
-      SECRET_KEY: evulnscanner-secret-key
-      JWT_SECRET: evulnscanner-jwt-secret
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET: ${JWT_SECRET}
 
-    # DB가 먼저 실행된 후 backend 실행
+    # DB가 healthy 상태가 된 후 backend 실행
     depends_on:
       db:
         condition: service_healthy
+
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
       interval: 3s
       timeout: 3s
       retries: 15
       start_period: 10s
+
+    # 공통 네트워크 사용
     networks:
       - security-network
 
-  # 웹/API 자동 진단 엔진 
+
+  # 웹/API 자동 진단 엔진
   scanner:
+    # scanner 폴더의 Dockerfile 사용
     build:
       context: ./Scanner
+
     container_name: security-scanner
+
+    # 내부 네트워크에서만 접근 가능 (platform이 호출)
     expose:
       - "5001"
+
+    # Scanner가 생성한 검사 결과(JSON)를 Report 컨테이너와 공유하기 위한 볼륨
     volumes:
       - scanner-results:/app/results
       - ./Backend/swagger.yaml:/app/swagger.yaml:ro
+
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health', timeout=2)"]
       interval: 3s
       timeout: 3s
       retries: 15
       start_period: 10s
+
     networks:
       - security-network
 
+
   # 결과 분석 및 Dashboard
   report:
+    # report 폴더의 Dockerfile 사용
     build:
       context: ./Report
+
     container_name: report-generator
+
+    # 내부 네트워크에서만 접근 가능 (platform이 호출)
     expose:
       - "5002"
+
+    # Scanner가 생성한 검사 결과(JSON)를 동일한 경로에서 읽기 위한 공유 볼륨
     volumes:
       - scanner-results:/app/results
+
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/health', timeout=2)"]
       interval: 3s
       timeout: 3s
       retries: 15
       start_period: 10s
+
     networks:
       - security-network
 
+
   # 사용자 UI 및 Scanner/Report 실행 제어 플랫폼
   platform:
+    # Platform Dockerfile 사용
     build:
       context: ./Platform
+
     container_name: security-platform
+
+    # 내부 네트워크에서만 접근 가능 (nginx가 리버스 프록시로 연결)
     expose:
-      - "8080" # Nginx가 내부에서 접근할 포트
+      - "8080"
+
+    # Scanner와 Report 결과 공유
     volumes:
       - scanner-results:/app/results
       - ./Scanner:/app/scanner
       - ./Report:/app/report
       - ./Backend/swagger.yaml:/app/swagger.yaml:ro
+
     depends_on:
       backend:
         condition: service_healthy
@@ -88,19 +123,23 @@ services:
         condition: service_healthy
       report:
         condition: service_healthy
+
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)"]
       interval: 3s
       timeout: 3s
       retries: 15
       start_period: 10s
+
     networks:
       - security-network
+
 
   # Nginx 리버스 프록시
   nginx:
     image: nginx:latest
     container_name: nginx-proxy
+    # 외부에서 접근하는 유일한 진입점이므로 호스트에 노출 유지
     ports:
       - "80:80" # 외부 HTTP 80 포트를 Nginx 80 포트로 바인딩
     volumes:
@@ -111,36 +150,54 @@ services:
     networks:
       - security-network
 
+
   # MySQL Database
   db:
+    # MySQL 8.0 공식 이미지 사용
     image: mysql:8.0
+
     container_name: mysql-db
+
+    # 컨테이너 종료 후 자동 재시작
     restart: unless-stopped
+
+    # DB 초기 환경 설정
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: security_db
-      MYSQL_USER: security
-      MYSQL_PASSWORD: security123
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+    # 내부 네트워크에서만 접근 가능 (backend만 연결)
     expose:
       - "3306"
+
+    # 데이터 영속성 보장
     volumes:
       - mysql-data:/var/lib/mysql
-    # DB 컨테이너 헬스체크 설정
+
+    # DB 컨테이너 헬스체크 설정 (backend가 이 상태를 기다림)
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 3s
       timeout: 3s
       retries: 15
       start_period: 10s
+
     networks:
       - security-network
 
+
 # Docker Volume
+# 컨테이너를 삭제해도 DB 데이터는 유지됨
+# Scanner와 Report가 검사 결과를 공유하기 위한 볼륨
 volumes:
   mysql-data:
   scanner-results:
 
+
 # Docker Network
+# 모든 서비스가 동일한 네트워크에서 통신
 networks:
   security-network:
     driver: bridge
