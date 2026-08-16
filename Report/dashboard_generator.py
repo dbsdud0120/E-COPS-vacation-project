@@ -2,19 +2,8 @@
 """
 dashboard_generator.py
 
-[버그 수정] 그래프가 안 보이던 원인
-    기존 코드는 Chart.js를 외부 CDN(jsdelivr)에서 <script src="https://...">
-    로 불러왔는데, 실제 배포/사내망 환경에서 그 주소로 외부 요청이 막혀 있으면
-    JS 라이브러리 자체를 못 받아와서 차트가 그려지지 않는다 (네트워크 콘솔에
-    로드 실패로 뜸). 대시보드는 다운로드해서 오프라인으로도 열어볼 수 있어야
-    하므로, Chart.js 라이브러리 코드 자체를 HTML 안에 통째로 내장해서
-    네트워크 요청이 전혀 없어도 항상 그려지도록 고쳤다.
-
-[디자인] report_generator.py와 동일한 GA(Google Analytics) 스타일 구조 적용
-    - 인덱스 탭, 연속형 통계 줄(세로 구분선), 볼드/일반 텍스트로 위계 구분
-
-사용법:
-    python3 dashboard_generator.py <scanner_result.json> [출력_prefix] [가이드파일_폴더]
+Scanner 결과 JSON을 읽어 등급별/유형별 요약 대시보드(HTML, Chart.js)를 생성한다.
+Chart.js는 assets/chart.umd.js로 인라인 내장되어 외부 CDN 없이 항상 렌더링된다.
 """
 
 import sys
@@ -43,21 +32,18 @@ jinja_env = Environment(autoescape=True)
 
 def _safe_json(obj):
     """
-    JSON을 <script> 태그 안에 직접(문자열이 아니라 리터럴로) 삽입할 때 쓰는 헬퍼.
-      1) Jinja autoescape가 " 를 &#34; 로 바꿔버리면 <script> 안에서는
-         HTML 엔티티가 디코딩되지 않아 문법 자체가 깨짐 -> 템플릿에서 |safe로
-         이스케이프를 건너뛰어야 하므로, 여기서 안전한 형태로 미리 만들어둔다.
-      2) 데이터 안에 "</script>" 문자열이 섞여 있으면 그 지점에서 스크립트
-         태그가 조기 종료되어 뒤 내용이 실행 가능한 HTML/스크립트로 해석될
-         수 있으므로 "</"를 "<\\/"로 이스케이프해 방지한다.
-    주의: 이 함수는 severity_labels_json 등 "JS 리터럴로 삽입되는" 값에만
-    쓴다. v.type, v.url처럼 HTML 본문에 텍스트로 들어가는 값은 절대
-    |safe를 붙이지 않고 Jinja의 기본 autoescape(HTML 이스케이프)를 그대로
-    사용해야 XSS 방지가 유지된다.
+    JSON을 <script> 태그 안에 리터럴로 직접 삽입할 때 쓰는 헬퍼.
+    - Jinja autoescape가 "를 &#34;로 바꾸면 <script> 안에서는 HTML 엔티티가
+      디코딩되지 않아 문법이 깨지므로, 템플릿에서 |safe로 이스케이프를
+      건너뛰기 위해 여기서 안전한 문자열을 미리 만든다.
+    - 데이터에 "</script>"가 섞여 있으면 스크립트 태그가 조기 종료되어
+      뒤 내용이 실행 가능한 스크립트로 해석될 수 있어 "</"를 "<\\/"로 이스케이프한다.
+    주의: v.type, v.url처럼 HTML 본문에 텍스트로 들어가는 값에는 절대
+    |safe를 붙이지 말 것 (Jinja 기본 autoescape를 유지해야 XSS 방지가 됨).
     """
     return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
 
-# Chart.js 라이브러리 전체를 인라인으로 내장 (CDN 의존 제거)
+
 _CHARTJS_PATH = Path(__file__).parent / "assets" / "chart.umd.js"
 CHARTJS_INLINE = _CHARTJS_PATH.read_text(encoding="utf-8") if _CHARTJS_PATH.exists() else ""
 
@@ -68,9 +54,8 @@ DASHBOARD_TEMPLATE = """
 <meta charset="UTF-8">
 <title>보안 취약점 대시보드</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
   body {
-    font-family: "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
+    font-family: "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
     background: #F5F6FA;
     color: #1F2430;
     margin: 0;
