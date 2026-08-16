@@ -115,7 +115,7 @@ DASHBOARD_TEMPLATE = """
   }
 </style>
 <script>
-{{ chartjs_inline }}
+{{ chartjs_inline | safe }}
 </script>
 </head>
 <body>

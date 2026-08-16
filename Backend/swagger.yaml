@@ -497,3 +497,15 @@ paths:
       responses:
         '200':
           description: 파일 내용 반환
+
+  /vuln/security-headers:
+    get:
+      summary: Security Headers 누락 테스트
+      description: |
+        CSP, X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security,
+        Referrer-Policy 등 권장 보안 응답 헤더가 의도적으로 빠져 있는 페이지입니다.
+        다른 정상 라우트에는 이 헤더들이 공통으로 적용되어 있습니다.
+
+      responses:
+        '200':
+          description: 보안 헤더가 빠진 취약 페이지

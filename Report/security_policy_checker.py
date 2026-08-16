@@ -87,7 +87,28 @@ def check_security_headers(url: str) -> list:
     try:
         resp = requests.get(url, timeout=5, allow_redirects=True)
         headers = resp.headers
+        # HSTS는 HTTPS 응답에서만 브라우저가 실제로 적용하는 헤더라서(RFC 6797),
+        # 최종 응답이 http였는지 https였는지를 별도로 확인해둔다.
+        response_is_https = urlparse(resp.url).scheme == "https"
+
         for name, purpose in SECURITY_HEADERS.items():
+            if name == "Strict-Transport-Security" and not response_is_https:
+                # HTTP 환경에서는 헤더가 있어도(브라우저가 무시함) 없어도(원래 못 씀)
+                # 의미 있는 Pass/Fail 판정이 아니므로 Manual로 분리하고 이유를 명시한다.
+                header_present = name in headers
+                results.append({
+                    "id": f"header_{name.lower().replace('-', '_')}",
+                    "name": f"{name} 헤더",
+                    "status": "Manual",
+                    "detail": (
+                        f"현재 http 응답이라 HSTS는 브라우저가 실제로 적용하지 않음 "
+                        f"(헤더 {'존재함' if header_present else '없음'}). "
+                        "HSTS는 HTTPS 환경에서만 유효하므로 이 항목은 자동 Pass/Fail 판정 대상에서 제외함."
+                    ),
+                    "recommendation": "HTTPS 적용 후 재점검 필요 (HTTPS 전환이 선행되어야 HSTS가 의미를 가짐)",
+                })
+                continue
+
             if name in headers:
                 results.append({
                     "id": f"header_{name.lower().replace('-', '_')}",

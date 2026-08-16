@@ -32,6 +32,27 @@ swaggerui_blueprint = get_swaggerui_blueprint(
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 app.register_blueprint(upload_bp)
 
+# ==========================================
+# 정상 라우트 공통 보안 헤더 적용
+# /vuln/security-headers 는 "헤더가 빠진 상태"를 시연하기 위한 의도적
+# 취약 엔드포인트라서, 다른 라우트와 달리 이 헤더들을 붙이지 않는다.
+# (다른 취약점들과 동일하게 정상/취약 라우트를 분리하는 설계에 맞춤)
+# ==========================================
+VULN_SECURITY_HEADERS_PATH = "/vuln/security-headers"
+
+@app.after_request
+def set_security_headers(response):
+    if request.path == VULN_SECURITY_HEADERS_PATH:
+        return response
+
+    response.headers.setdefault("Content-Security-Policy", "default-src 'self'")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
+
+
 # 세션 암호화 키
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
@@ -990,6 +1011,26 @@ def comment():
     <h2>댓글</h2>
 
     <p>{text}</p>
+
+    """
+
+# ==========================================
+# 의도적 취약점 예제: Security Headers 누락
+# set_security_headers()가 이 경로만 예외 처리해서 CSP, X-Frame-Options,
+# X-Content-Type-Options, Strict-Transport-Security, Referrer-Policy가
+# 전부 빠진 응답을 그대로 돌려준다.
+# 실제 서비스에서는 사용하면 안 됨
+# ==========================================
+
+@app.route("/vuln/security-headers")
+def vuln_security_headers():
+
+    return """
+
+    <h2>보안 헤더 누락 페이지</h2>
+
+    <p>이 페이지는 권장 보안 응답 헤더(CSP, X-Frame-Options, X-Content-Type-Options,
+    Strict-Transport-Security, Referrer-Policy)가 의도적으로 빠져 있습니다.</p>
 
     """
 
