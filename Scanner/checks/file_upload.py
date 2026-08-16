@@ -2,7 +2,6 @@
 checks/file_upload.py
 -----------------------
 파일 업로드 취약점(확장자/파일명 검증 누락) 탐지.
-(Notion "Scanner 담당" 6번: file upload 검사 기능 추가)
 
 동작 방식:
   1. 크롤링된 페이지의 <form> 중 파일 입력(input type="file")이 있는 POST 폼을 대상으로 함
@@ -29,7 +28,6 @@ CHECK_NAME = "file_upload"
 DUMMY_VALUE = "test"  # 파일 필드 외 나머지 필수 입력값을 채울 더미 값
 
 # 이 문자열이 응답에 있으면 "거부됨"으로 판단 (Backend/upload.py의 allowed_file() 메시지 기준)
-# TODO(Backend 변경 시): 거부 문구가 바뀌면 여기 수정
 REJECT_HINTS = ("허용되지 않는", "선택하세요", "존재하지 않")
 
 

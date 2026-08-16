@@ -45,17 +45,30 @@ RESULTS_DIR = os.environ.get(
 
 
 def load_payloads(check_name: str) -> list[str]:
-    """payloads/<check_name>.txt 를 읽어 줄 단위 리스트로 반환"""
+    """payloads/<check_name>.txt 를 읽어 줄 단위 리스트로 반환
+
+    빈 줄과 '#'으로 시작하는 주석 줄은 제외한다. (예: file_upload.txt,
+    idor.txt, broken_authentication.txt 등은 사용법 설명을 '#' 주석으로
+    파일 맨 위에 적어두는데, 이 필터링이 없으면 주석 줄 자체가 payload로
+    취급되어 실제 payload가 아닌 문자열로 요청을 보내는 문제가 있었음.)
+    """
     path = os.path.join(PAYLOADS_DIR, f"{check_name}.txt")
     if not os.path.exists(path):
         print(f"[scanner] 경고: payload 파일 없음 -> {path} (빈 목록으로 진행)")
         return []
+    payloads = []
     with open(path, "r", encoding="utf-8") as f:
-        return [line.rstrip("\n") for line in f if line.strip()]
+        for line in f:
+            line = line.rstrip("\n")
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            payloads.append(line)
+    return payloads
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="웹 자동 진단 Scanner (MVP)")
+    parser = argparse.ArgumentParser(description="웹 자동 진단 Scanner")
     parser.add_argument("url", help="검사할 대상 URL (예: https://example.com)")
     parser.add_argument("--depth", type=int, default=2, help="크롤링 최대 깊이 (기본값: 2)")
     parser.add_argument(
@@ -162,9 +175,21 @@ def run_scan(target_url: str, depth: int, check_names: list[str], swagger_source
     payloads_by_check = {name: load_payloads(name) for name in check_names}
 
     all_findings = []
-    for page in pages:
-        if page.status_code == -1:
-            continue  # 요청 실패 페이지는 건너뜀
+
+    # total_pages(및 진행률 로그의 분모)는 실제로 검사가 수행되는 페이지 수만 반영해야 한다.
+    # status_code == -1(요청 실패/파괴적이라 건너뛴 URL)까지 분모에 포함하면, 그런 페이지가
+    # 목록 뒤쪽에 있을 때 마지막으로 출력되는 진행률이 (N-1/N)에서 멈춰 100%에 도달하지 못한다.
+    # 그래서 검사 가능한 페이지만 먼저 걸러낸 뒤 그 목록 기준으로 세고 순회한다.
+    scannable_pages = [page for page in pages if page.status_code != -1]
+    skipped_request_failed = len(pages) - len(scannable_pages)
+    total_pages = len(scannable_pages)
+
+    print(f"[scanner] 취약점 점검 시작: 총 {total_pages}개 페이지, {len(check_names)}개 항목 ({', '.join(check_names)})")
+    if skipped_request_failed:
+        print(f"[scanner] 요청 실패(status_code=-1)로 검사 대상에서 제외된 페이지 {skipped_request_failed}개")
+
+    for page_idx, page in enumerate(scannable_pages, start=1):
+        print(f"[scanner] ({page_idx}/{total_pages}) 페이지 점검 중: {page.url}")
 
         for check_name in check_names:
             check_fn = CHECK_REGISTRY.get(check_name)
@@ -179,12 +204,25 @@ def run_scan(target_url: str, depth: int, check_names: list[str], swagger_source
                 print(f"[scanner] '{check_name}' 실행 중 오류 ({page.url}): {e}")
                 continue
 
+            if findings:
+                print(f"[scanner]   -> [{check_name}] {len(findings)}건 발견")
+
             all_findings.extend(findings)
 
-    # ⚙️ 3주차: Report(report_generator.py)가 읽는 스키마에 맞춤
+    print(f"[scanner] 취약점 점검 완료: 총 {len(all_findings)}건 발견")
+
+    # Report(report_generator.py)가 읽는 스키마에 맞춤
     #   - scanned_at -> scan_date, findings -> vulnerabilities
     #   - 각 항목의 check_name -> type / severity Capitalize 변환은
     #     Finding.to_dict()(checks/base.py)에서 처리됨
+    if crawler.skipped_destructive_urls:
+        print(
+            f"[scanner] 파괴적으로 보여 요청을 보내지 않고 건너뛴 URL {len(crawler.skipped_destructive_urls)}개 "
+            "(자동 검사 대상에서 제외됨 - 수동 확인 필요):"
+        )
+        for skipped_url in crawler.skipped_destructive_urls:
+            print(f"[scanner]   - {skipped_url}")
+
     result = {
         "target": target_url,
         "scan_date": datetime.now(timezone.utc).isoformat(),
@@ -192,6 +230,9 @@ def run_scan(target_url: str, depth: int, check_names: list[str], swagger_source
         "checks_run": check_names,
         "vulnerabilities_count": len(all_findings),
         "vulnerabilities": [f.to_dict() for f in all_findings],
+        # 자동 검사 대상에서 제외된(=요청을 보내지 않은) URL. checks_run에 idor가
+        # 없어도 항상 채워지므로, Report 쪽에서 "수동 확인 필요" 목록으로 활용 가능.
+        "skipped_destructive_urls": crawler.skipped_destructive_urls,
     }
     return result
 
@@ -226,6 +267,18 @@ def main():
     print(f"[scanner] 스캔 완료. 발견된 이슈: {result['vulnerabilities_count']}건")
     print(f"[scanner] 결과 저장: {filepath}")
     print(f"[scanner] 최신 결과: {os.path.join(RESULTS_DIR, 'latest.json')}")
+
+    # run_scan() 중간에도 한 번 로그를 남기지만(크롤링 직후), 그 로그는 스캔이 계속
+    # 진행되면서 뒤이은 check 로그에 묻혀 놓치기 쉽다. 스캔이 다 끝난 시점에도 한 번 더
+    # 명확히 알려준다 (결과 JSON의 "skipped_destructive_urls" 필드와 동일한 목록).
+    skipped = result.get("skipped_destructive_urls") or []
+    if skipped:
+        print(
+            f"[scanner] ⚠ 자동 검사에서 제외된 파괴적 URL {len(skipped)}개 — "
+            "수동으로 확인하세요:"
+        )
+        for skipped_url in skipped:
+            print(f"[scanner]   - {skipped_url}")
 
 
 if __name__ == "__main__":

@@ -6,16 +6,15 @@ checks/directory_traversal.py
 동작 방식은 sql_injection.py와 동일한 패턴: 쿼리 파라미터에 payload를 넣고
 응답에 시스템 파일 노출 시그니처가 있는지 확인.
 
-⚠️ 현재(2주차 시작 시점) Backend에 파일을 읽어오는 엔드포인트
-   (예: /download?file=...)가 아직 없어서, 크롤링 결과에 테스트할 쿼리
-   파라미터 자체가 없을 수 있습니다. 그 경우 findings는 0건이 정상입니다.
+⚠️ 파일 관련 쿼리 파라미터가 있는 페이지(예: /vuln/download?file=...)가 크롤링
+   결과에 없으면 findings는 0건이 정상입니다.
 
-⚙️ Backend가 파일 다운로드/조회 라우트를 추가하면:
+⚙️ 새로운 파일 다운로드/조회 라우트가 추가되면:
    - 해당 라우트의 쿼리 파라미터가 crawler.py에 자동으로 수집되고,
      이 파일은 수정 없이 바로 동작합니다.
    - 파라미터 이름이 file/path 계열이 아니면 PRIORITY_PARAM_NAMES에 추가 (선택,
      없어도 전체 파라미터를 어차피 다 시도함)
-   - 실제 응답 형식을 보고 SIGNATURES를 보강하세요 (지금은 /etc/passwd, win.ini
+   - 실제 응답 형식이 다르면 SIGNATURES를 보강하세요 (지금은 /etc/passwd, win.ini
      기준 일반적인 시그니처만 있음)
 """
 from __future__ import annotations
@@ -29,7 +28,6 @@ CHECK_NAME = "directory_traversal"
 PRIORITY_PARAM_NAMES = {"file", "filename", "path", "filepath", "doc", "download", "page", "name"}
 
 # 응답에 이 문자열이 보이면 시스템 파일이 실제로 노출된 것으로 판단
-# TODO(Backend 라우트 확정 후): 실제 응답을 보고 시그니처 보강
 SIGNATURES = [
     "root:x:0:0",              # /etc/passwd (Linux)
     "root:*:0:0",

@@ -26,7 +26,6 @@ DEFAULT_PATH_PARAM_VALUE = "1"
 
 # 쿼리 파라미터가 필요한 GET 엔드포인트는 예시 값을 붙여줘야
 # directory_traversal 같은 쿼리 파라미터 기반 검사가 바로 테스트할 수 있음
-# TODO(Backend가 파라미터 이름을 바꾸면): 여기 키를 맞춰서 수정
 DEFAULT_QUERY_PARAMS = {
     "/vuln/download": "file=test.txt",
     # /vuln/comment는 GET 쿼리 파라미터(text)를 그대로 escaping 없이 출력하는
