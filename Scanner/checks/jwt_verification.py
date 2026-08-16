@@ -1,7 +1,7 @@
 """
 checks/jwt_verification.py
 ----------------------------
-JWT 서명 검증 누락(Missing JWT Verification) 탐지. (3주차 추가)
+JWT 서명 검증 누락(Missing JWT Verification) 탐지.
 
 동작 방식:
   1. 대상 페이지 응답(쿠키, 응답 바디, Authorization류 헤더)에서 JWT처럼 생긴 문자열
@@ -19,7 +19,7 @@ JWT 서명 검증 누락(Missing JWT Verification) 탐지. (3주차 추가)
    이미 로그인된 쿠키를 들고 있을 수 있어서, 그 session을 그대로 쓰면 토큰과 무관하게 쿠키만으로
    통과되어 오탐(false positive)이 날 수 있기 때문이다.
 
-⚠️ 현재(3주차 시점) Backend(app.py)는 세션 쿠키 기반 인증만 사용하고 JWT를 쓰지 않는다.
+⚠️ Backend(app.py)는 세션 쿠키 기반 인증만 사용하고 JWT를 쓰지 않는다.
    이 Backend를 대상으로 스캔하면 대부분 findings가 0건인 게 정상이다.
    (다른 JWT 기반 백엔드를 스캔할 때를 대비한 범용 검사.)
 
@@ -27,7 +27,7 @@ JWT 서명 검증 누락(Missing JWT Verification) 탐지. (3주차 추가)
    - 로그인 응답 바디/쿠키/헤더에 토큰을 포함시키기만 하면 이 check가 자동으로 찾아서 검사함.
    - 토큰이 특정 커스텀 헤더에만 있다면 EXTRA_HEADER_NAMES에 추가.
 
-✅ 발급/사용 페이지 분리 대응 (PR 리뷰 코멘트 반영, 기존 TODO 해결):
+✅ 발급/사용 페이지 분리 대응:
    scanner.py는 스캔 전체에서 동일한 session 객체를 재사용해 모든 check를 호출한다.
    이 점을 이용해, 이 check가 어떤 페이지에서든 새로 발견한 토큰을 session에
    부착된 공유 상태(session._jwt_scan_state)에 누적 저장한다. 이후 방문하는

@@ -7,10 +7,8 @@ checks/base.py
   - 각 check 함수는 시그니처를 (session, page: PageInfo, payloads: list[str]) -> list[Finding] 로 통일한다.
   - 이렇게 하면 scanner.py는 check 함수가 SQLi인지 XSS인지 몰라도
     동일한 방식으로 호출/집계할 수 있다.
-  - 아직 취약 서버가 없으므로 실제 판별 로직은 "샘플/틀" 수준이며,
-    TODO 주석으로 다음 주차에 채울 부분을 표시한다.
 
-⚙️ 3주차: Report(report_generator.py)가 읽는 스키마와 이름을 맞추기 위해
+Report(report_generator.py)가 읽는 스키마와 이름을 맞추기 위해
    Finding.to_dict()의 출력 필드/값을 아래처럼 변환한다 (Scanner 내부 로직/각
    checks/*.py에서 쓰는 check_name, Severity enum 값 자체는 그대로 유지하고,
    "출력 시점"에만 변환한다 — 각 check 모듈 코드는 수정할 필요 없음):
@@ -33,7 +31,6 @@ class Severity(str, Enum):
 
 # check_name(Scanner 내부 값) -> Report/mitigation_guide.md 표기 이름
 # ⚠️ Report의 mitigation_guide.md 표와 "정확히" 같은 문자열이어야 대응방안이 매칭됨.
-#    Notion "Scanner 담당" 항목에 정의된 매핑을 그대로 반영.
 VULN_TYPE_MAP: dict[str, str] = {
     "sql_injection": "SQL Injection",
     "xss": "Reflected XSS",
@@ -44,14 +41,14 @@ VULN_TYPE_MAP: dict[str, str] = {
     "idor": "IDOR",
     "missing_jwt_verification": "Missing JWT Verification",
     "missing_rate_limiting": "Missing Rate Limiting",
-    # security_headers는 mitigation_guide.md 표에는 아직 없음 (Report 담당이 행 추가 예정,
-    # README "아직 남은 것" 참고). 이름 형식만 나머지와 통일해서 미리 맞춰둠.
+    # security_headers는 mitigation_guide.md 표에는 아직 없음.
+    # 이름 형식만 나머지와 통일해서 미리 맞춰둠.
     "security_headers": "Security Headers",
 }
 
 # Severity(Scanner 내부 값, 소문자) -> Report 표기(Capitalize)
 # Report의 SEVERITY_ORDER(report_generator.py)에 "Info"가 추가되어 요약 집계/카드
-# 표시 모두에 반영됨. (과거엔 Report 쪽에 Info가 없어 팀 논의가 필요했으나 해결됨)
+# 표시 모두에 반영됨.
 SEVERITY_DISPLAY_MAP: dict[str, str] = {
     Severity.CRITICAL.value: "Critical",
     Severity.HIGH.value: "High",

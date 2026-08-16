@@ -18,52 +18,75 @@
     max-width: 520px;
     margin: 0 auto;
   }
-  h1 {
-    font-size: 24px;
-    margin-top: 0;
-  }
-  .link-group {
-    margin-top: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
+  h1 { font-size: 24px; margin-top: 0; }
+  .link-group { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; }
   .download-btn {
-    display: block;
-    padding: 12px 16px;
-    background-color: #4A90E2;
-    color: white;
-    text-decoration: none;
-    border-radius: 6px;
-    text-align: center;
-    font-weight: 600;
-    font-size: 14px;
+    display: block; padding: 12px 16px; background-color: #4A90E2;
+    color: white; text-decoration: none; border-radius: 6px;
+    text-align: center; font-weight: 600; font-size: 14px;
     transition: background-color 0.2s ease, opacity 0.2s ease;
   }
-  .download-btn.dashboard { background-color: #2E7D32; } /* 초록색 (대시보드) */
-  .download-btn.policy { background-color: #00838F; }    /* 청록색 (보안 정책 리포트) */
+  .download-btn.dashboard { background-color: #2E7D32; }
+  .download-btn.policy { background-color: #00838F; }
   .download-btn:hover { opacity: 0.9; }
+
+  .progress-wrap { margin-top: 18px; }
+  .progress-track {
+    width: 100%; height: 10px; background-color: #e9ecef;
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #4A90E2, #6FB1FC);
+    border-radius: 999px; transition: width 0.4s ease;
+  }
+  .progress-fill.done { background: linear-gradient(90deg, #2E7D32, #4CAF50); }
+  .progress-fill.error { background: linear-gradient(90deg, #C62828, #E57373); }
+  .progress-label {
+    display: flex; justify-content: space-between;
+    font-size: 12px; color: #888; margin-top: 6px;
+  }
+
+  .log-box {
+    margin-top: 20px; background-color: #1e1e1e; color: #d4d4d4;
+    font-family: "Consolas", "D2Coding", monospace; font-size: 13px;
+    padding: 14px; border-radius: 6px; height: 220px;
+    overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+    display: none;
+  }
+  .log-box .log-line { padding: 1px 0; }
+  .log-label {
+    margin-top: 16px; font-size: 13px; font-weight: 600;
+    color: #666; display: none;
+  }
 </style>
 </head>
 <body>
   <div class="container">
     <h1 id="status-title">확인 중...</h1>
     <p id="status-desc">스캔 상태를 확인하고 있습니다.</p>
-    
-    <!-- 결과물 링크 영역 -->
-    <div id="download-links" class="link-group" style="display:none;">
-      <!-- 종합 대시보드 -->
-      <a id="btn-dashboard" class="download-btn dashboard" href="/download/dashboard/{{ job_id }}" target="_blank" style="display:none;">📊 종합 대시보드 (Dashboard)</a>
-      
-      <!-- 보안 정책 점검 리포트 (추가됨) -->
-      <a id="btn-policy" class="download-btn policy" href="/download/policy/{{ job_id }}" target="_blank" style="display:none;">🛡️ 보안 정책 점검 리포트 (Policy)</a>
 
-      <!-- 취약점 상세 리포트 (HTML / PDF) -->
+    <div id="progress-wrap" class="progress-wrap">
+      <div class="progress-track">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+      <div class="progress-label">
+        <span id="progress-stage">대기 중</span>
+        <span id="progress-percent">0%</span>
+      </div>
+    </div>
+
+    <div id="download-links" class="link-group" style="display:none;">
+      <a id="btn-dashboard" class="download-btn dashboard" href="/download/dashboard/{{ job_id }}" target="_blank" style="display:none;">📊 종합 대시보드 (Dashboard)</a>
+      <a id="btn-policy" class="download-btn policy" href="/download/policy/{{ job_id }}" target="_blank" style="display:none;">🛡️ 보안 정책 점검 리포트 (Policy)</a>
       <a id="btn-html" class="download-btn" href="/download/html/{{ job_id }}" target="_blank">📄 취약점 상세 리포트 (HTML)</a>
       <a id="btn-pdf" class="download-btn" href="/download/pdf/{{ job_id }}">📑 취약점 상세 리포트 (PDF)</a>
     </div>
-    
+
     <p id="error-text" style="color:red; font-weight:bold; margin-top:16px;"></p>
+
+    <p id="log-label" class="log-label">🖥️ 실시간 스캔 로그</p>
+    <div id="log-box" class="log-box"></div>
   </div>
 
   <script>
@@ -72,56 +95,146 @@
     const descEl = document.getElementById("status-desc");
     const downloadEl = document.getElementById("download-links");
     const errorEl = document.getElementById("error-text");
-    
+    const logBoxEl = document.getElementById("log-box");
+    const logLabelEl = document.getElementById("log-label");
+
+    const progressFillEl = document.getElementById("progress-fill");
+    const progressStageEl = document.getElementById("progress-stage");
+    const progressPercentEl = document.getElementById("progress-percent");
+
     const btnDashboard = document.getElementById("btn-dashboard");
     const btnPolicy = document.getElementById("btn-policy");
-    
-    let intervalId = null;
+
+    // 상태값 → 문구 + 로그가 아직 없을 때의 기본(fallback) 퍼센트
+    const statusMessages = {
+      "Ready": { title: "준비 중", desc: "스캔을 준비하고 있습니다...", stage: "준비 중", percent: 10 },
+      "Scanning": { title: "취약점 수집 중", desc: "웹 구조를 분석하고 취약점 정보를 수집하고 있습니다...", stage: "취약점 수집 중", percent: 40 },
+      "Generating Report": { title: "리포트 생성 중", desc: "수집된 데이터를 바탕으로 리포트를 작성하고 있습니다...", stage: "리포트 생성 중", percent: 80 },
+      "Completed": { title: "Scan Completed", desc: "취약점 분석 및 정책 점검이 완료되었습니다.", stage: "완료", percent: 100 },
+      "Error": { title: "Scan Failed", desc: "오류가 발생했습니다.", stage: "실패", percent: 0 }
+    };
+
+    let statusIntervalId = null;
+    let logIntervalId = null;
+    let logOffset = 0;
+    let lastKnownPercent = 0;
+
+    // scanner.py가 찍는 "(n/total) 페이지 점검 중" 로그를 파싱하는 정규식
+    // scanner 담당자에게 이 정확한 문구/형식을 유지해달라고 요청해둔 상태
+    const scanProgressPattern = /\((\d+)\/(\d+)\)\s*페이지 점검 중/;
+
+    function setProgress(percent, stageLabel, variant) {
+      const clamped = Math.max(0, Math.min(100, percent));
+      lastKnownPercent = clamped;
+      progressFillEl.style.width = `${clamped}%`;
+      progressFillEl.classList.toggle("done", variant === "done");
+      progressFillEl.classList.toggle("error", variant === "error");
+      progressStageEl.textContent = stageLabel;
+      progressPercentEl.textContent = `${Math.round(clamped)}%`;
+    }
+
+    function updateProgressFromLog(lines) {
+      // 가장 최근 로그부터 역순 탐색해서 최신 진행 상황만 반영
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const match = lines[i].match(scanProgressPattern);
+        if (match) {
+          const current = parseInt(match[1], 10);
+          const total = parseInt(match[2], 10);
+          if (total > 0) {
+            // Scanning 단계는 전체의 40~80% 구간으로 배분, 그 안에서 세분화
+            const ratio = current / total;
+            const percent = 40 + ratio * 40;
+            setProgress(percent, `취약점 수집 중 (${current}/${total})`);
+          }
+          return;
+        }
+      }
+    }
 
     async function checkStatus() {
       try {
         const res = await fetch(`/status/${jobId}`);
         const data = await res.json();
-        
+
         if (data.error) {
           titleEl.textContent = "Job Not Found";
           descEl.textContent = data.error;
-          clearInterval(intervalId);
+          clearInterval(statusIntervalId);
+          clearInterval(logIntervalId);
           return;
         }
-        
+
+        const msg = statusMessages[data.status];
+
         if (data.status === "Completed") {
-          titleEl.textContent = "Scan Completed";
-          descEl.textContent = "취약점 분석 및 정책 점검이 완료되었습니다.";
-          
-          // 데이터 유무에 맞춰 버튼 활성화
-          if (data.dashboard_html) {
-            btnDashboard.style.display = "block";
-          }
-          if (data.policy_html) {
-            btnPolicy.style.display = "block";
-          }
+          titleEl.textContent = msg.title;
+          descEl.textContent = msg.desc;
+          setProgress(100, msg.stage, "done");
+
+          if (data.dashboard_html) btnDashboard.style.display = "block";
+          if (data.policy_html) btnPolicy.style.display = "block";
 
           downloadEl.style.display = "flex";
-          clearInterval(intervalId);
+          clearInterval(statusIntervalId);
+          setTimeout(() => clearInterval(logIntervalId), 3000);
         } else if (data.status === "Error") {
-          titleEl.textContent = "Scan Failed";
-          descEl.textContent = "오류가 발생했습니다.";
+          titleEl.textContent = msg.title;
+          descEl.textContent = msg.desc;
           errorEl.textContent = data.error || "";
-          clearInterval(intervalId);
+          setProgress(lastKnownPercent, msg.stage, "error");
+          clearInterval(statusIntervalId);
+          setTimeout(() => clearInterval(logIntervalId), 3000);
         } else {
-          titleEl.textContent = "Scanning...";
-          descEl.textContent = `현재 상태: ${data.status}`;
+          const known = msg || { title: "진행 중...", desc: `현재 상태: ${data.status}`, stage: data.status, percent: 20 };
+          titleEl.textContent = known.title;
+          descEl.textContent = known.desc;
+          // 로그에서 세밀한 값을 아직 못 받았을 때만 단계 기본값 사용
+          if (!logBoxEl.dataset.hasScanProgress) {
+            setProgress(known.percent, known.stage);
+          }
         }
       } catch (e) {
         titleEl.textContent = "상태 확인 실패";
         descEl.textContent = "서버와 통신 중 오류가 발생했습니다.";
-        clearInterval(intervalId);
+        clearInterval(statusIntervalId);
+        clearInterval(logIntervalId);
+      }
+    }
+
+    async function pollLogs() {
+      try {
+        const res = await fetch(`/logs/${jobId}?offset=${logOffset}`);
+        const data = await res.json();
+
+        if (data.lines && data.lines.length > 0) {
+          logBoxEl.style.display = "block";
+          logLabelEl.style.display = "block";
+
+          for (const line of data.lines) {
+            const lineEl = document.createElement("div");
+            lineEl.className = "log-line";
+            lineEl.textContent = line;
+            logBoxEl.appendChild(lineEl);
+          }
+
+          logOffset = data.offset;
+          logBoxEl.scrollTop = logBoxEl.scrollHeight;
+
+          const hadMatch = data.lines.some(line => scanProgressPattern.test(line));
+          if (hadMatch) {
+            logBoxEl.dataset.hasScanProgress = "1";
+            updateProgressFromLog(data.lines);
+          }
+        }
+      } catch (e) {
+        // 로그 폴링 실패는 조용히 무시
       }
     }
 
     checkStatus();
-    intervalId = setInterval(checkStatus, 2000);
+    pollLogs();
+    statusIntervalId = setInterval(checkStatus, 2000);
+    logIntervalId = setInterval(pollLogs, 1000);
   </script>
 </body>
 </html>

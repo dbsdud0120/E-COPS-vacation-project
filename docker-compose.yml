@@ -30,6 +30,14 @@ services:
       - db
 
     # 공통 네트워크 사용
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
     networks:
       - security-network
 
@@ -50,6 +58,13 @@ services:
     volumes:
       - scanner-results:/app/results
 
+      - ./Backend/swagger.yaml:/app/swagger.yaml:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
     networks:
       - security-network
 
@@ -70,6 +85,12 @@ services:
     volumes:
       - scanner-results:/app/results
 
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/health', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
     networks:
       - security-network
 
@@ -102,6 +123,34 @@ services:
       - report
 
 
+      - ./Backend/swagger.yaml:/app/swagger.yaml:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      scanner:
+        condition: service_healthy
+      report:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
+    networks:
+      - security-network
+
+  # Nginx 리버스 프록시
+  nginx:
+    image: nginx:latest
+    container_name: nginx-proxy
+    ports:
+      - "80:80" # 외부 HTTP 80 포트를 Nginx 80 포트로 바인딩
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      platform:
+        condition: service_healthy
     networks:
       - security-network
 

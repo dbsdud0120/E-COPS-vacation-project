@@ -4,10 +4,10 @@ crawler.py
 대상 URL에서 시작해 같은 도메인 내부의 링크와 form을 수집한다.
 결과물은 scanner.py가 각 checks/*.py 함수에 넘겨줄 "타겟 목록"이다.
 
-MVP 범위:
-  - GET 요청만 사용 (인증/세션 처리는 다음 주차)
+범위:
+  - GET 요청만 사용해 크롤링 (로그인이 필요한 페이지 접근은 auth.py가 담당)
   - depth(탐색 깊이)로 무한 크롤링 방지
-  - <a href>, <form> 두 가지만 수집 (JS로 렌더링되는 링크는 다음 주차: Selenium/Playwright 고려)
+  - <a href>, <form> 두 가지만 수집 (JS로 렌더링되는 링크는 미지원)
 """
 
 from __future__ import annotations
@@ -17,6 +17,8 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+
+from safety import looks_destructive
 
 DEFAULT_HEADERS = {
     "User-Agent": "MiniScanner/0.1 (+internal-security-testing)"
@@ -30,7 +32,7 @@ class FormInfo:
     method: str          # GET / POST
     inputs: list[str] = field(default_factory=list)  # input name 목록
     # input name -> type (예: "file", "text", "password"). <textarea>/<select>는 태그명을 그대로 사용.
-    # ⚙️ 3주차: checks/file_upload.py가 type="file" 필드를 찾는 데 사용.
+    # checks/file_upload.py가 type="file" 필드를 찾는 데 사용.
     input_types: dict[str, str] = field(default_factory=dict)
 
 
@@ -54,6 +56,9 @@ class Crawler:
         self.visited: set[str] = set()
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
+        # 파괴적으로 보여서 실제 요청을 보내지 않고 건너뛴 URL 목록 (수동 확인용으로
+        # run_scan()이 결과 JSON/로그에 노출함)
+        self.skipped_destructive_urls: list[str] = []
 
     def _is_same_domain(self, url: str) -> bool:
         return urlparse(url).netloc == self.domain
@@ -103,7 +108,19 @@ class Crawler:
         반환값: (PageInfo, 페이지에서 발견한 같은 도메인 링크 목록)
         요청 실패 시에도 None이 아니라 status_code=-1인 PageInfo를 반환한다
         (링크 목록은 빈 리스트).
+
+        ⚠️ URL이 파괴적으로 보이면(safety.looks_destructive) 실제 요청을 아예 보내지
+        않는다. GET 요청 하나만으로 삭제 등 상태 변경이 일어나는 엔드포인트가 있을 수
+        있어서, "그냥 페이지 목록에 넣으려고 방문"하는 것만으로 데이터가 사라지는 걸
+        막기 위함이다. 이때도 status_code=-1로 반환해서, scanner.py의 메인 루프가
+        어떤 check도 이 페이지를 건드리지 않도록 자동으로 걸러지게 한다.
         """
+        if looks_destructive(url):
+            print(f"[crawler] 파괴적으로 보이는 경로라 요청을 보내지 않고 건너뜀: {url}")
+            if url not in self.skipped_destructive_urls:
+                self.skipped_destructive_urls.append(url)
+            return PageInfo(url=url, status_code=-1), []
+
         try:
             resp = self.session.get(url, timeout=self.timeout)
         except requests.RequestException as e:

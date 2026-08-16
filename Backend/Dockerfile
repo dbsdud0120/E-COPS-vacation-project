@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 # 컨테이너 내부 작업 폴더
 WORKDIR /app
-
+    
 # Backend 폴더 전체 복사
 COPY . .
 

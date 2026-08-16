@@ -39,19 +39,29 @@ E-COPS-vacation-project-main/
 │   ├── upload.py               # 파일 업로드 핸들러
 │   ├── swagger.yaml            # API 문서
 │   └── templates/              # HTML 템플릿
-├── Scanner/                    # 취약점 스캐너 엔진
-│   ├── scanner.py              # 메인 스캐너 로직
-│   ├── crawler.py              # 웹 크롤러
-│   ├── checks/                 # 취약점별 진단 모듈
-│   └── payloads/               # 취약점 진단용 페이로드
-├── Report/                     # 리포트 및 대시보드 생성기
-│   ├── report_generator.py     # 종합 리포트 생성기
-│   ├── dashboard_generator.py  # 대시보드 HTML 생성기
-│   ├── security_policy_checker.py # 보안 정책 점검기
-│   └── mitigation_guide.md     # 취약점 완화/조치 가이드
-└── Platform/                   # 플랫폼 프론트엔드/컨트롤러 (외부 노출 접점)
-    ├── app.py                  # 플랫폼 백엔드
-    └── templates/              # 대시보드 & 결과 뷰
+├── Scanner/                    # 취약점 스캐너 엔진 → 상세: Scanner/README.md
+│   ├── scanner.py              # 메인 진입점 (CLI), 전체 파이프라인 조립/실행
+│   ├── crawler.py              # requests + BeautifulSoup 기반 크롤러
+│   ├── auth.py                 # 로그인 세션 헬퍼
+│   ├── swagger_seed.py         # swagger 문서 기반 크롤링 시드 보완
+│   ├── checks/                 # 취약점별 진단 모듈 (SQLi, XSS, IDOR 등 총 10종)
+│   ├── payloads/                # 취약점 진단용 페이로드 목록
+│   └── results/                 # 스캔 결과 JSON (scan_<타임스탬프>.json, latest.json)
+├── Report/                     # 리포트 및 대시보드 생성기 → 상세: Report/README.md
+│   ├── report_generator.py     # 취약점 상세 리포트 생성 (HTML + PDF)
+│   ├── dashboard_generator.py  # 등급별/유형별 요약 대시보드 생성 (Chart.js)
+│   ├── security_policy_checker.py  # 보안 정책 자동 점검 (HTTPS, Security Header, CORS, JWT 만료 등)
+│   ├── policy_report_generator.py  # 정책 점검 결과 HTML 렌더링
+│   ├── report_server.py        # Platform과 통신하는 Flask API 서버 (5002번 포트)
+│   ├── mitigation_guide.md     # 취약점 유형별 대응 방안표
+│   └── severity_guide.md       # 위험도(Critical~Info) 분류 기준표
+└── Platform/                   # 오케스트레이터 / 외부 노출 접점 → 상세: Platform/README.md
+    ├── app.py                  # 스캔 요청 접수, Scanner·Report 호출, 진행 상태 관리
+    ├── Dockerfile
+    └── templates/               # index.html (요청 페이지), result.html (진행률/결과 페이지)
+
+각 서비스의 세부 구현(엔드포인트, 실행 방법, 내부 로직)은 해당 디렉토리의 README를 참고하세요:
+Platform/README.md · Scanner/README.md · Report/README.md · Backend/README.md
 ```
 
 ---
@@ -59,55 +69,55 @@ E-COPS-vacation-project-main/
 ## 시스템 구조
 
 ```
-                        사용자
-                           |
-                           | HTTP 요청
-                           ↓
-              ┌────────────────────────┐
-              │        Platform        │
-              │   (Web UI + 제어 역할)  │
-              └────────────────────────┘
-                           |
-             ┌─────────────┴─────────────┐
-             |                           |
-             | POST /scan                | POST /report
-             ↓                           ↓
-┌──────────────────────┐      ┌──────────────────────┐
-│   Scanner Container  │      │   Report Container   │
-│                      │      │                      │
-│  scanner_server.py   │      │  report_server.py    │
-│  (Flask API Server)  │      │  (Flask API Server)  │
-│                      │      │                      │
-└──────────┬───────────┘      └──────────┬───────────┘
-           |                             |
-           | 실행 요청                    | 실행 요청
-           ↓                             ↓
-┌──────────────────────┐      ┌──────────────────────┐
-│     scanner.py       │      │ report_generator.py  │
-│                      │      │                      │
-│ - URL 크롤링         │      │ - JSON 분석          │
-│ - SQL Injection 검사 │      │ - HTML 생성          │
-│ - XSS 검사           │      │ - PDF 생성           │
-│ - 결과 JSON 생성     │      │                      │
-└──────────┬───────────┘      └──────────┬───────────┘
-           |                             |
-           |                             |
-           └─────────────┬───────────────┘
-                         ↓
+사용자
+                                |
+                                | HTTP 요청 (스캔 대상 URL 입력)
+                                ↓
+                  ┌─────────────────────────┐
+                  │         Nginx           │
+                  │     (Reverse Proxy)      │
+                  └────────────┬────────────┘
+                                ↓
+                  ┌─────────────────────────┐
+                  │        Platform          │
+                  │  (Flask, 오케스트레이터)  │
+                  │  - job_id 발급/상태 관리  │
+                  │  - 진행률·로그 스트리밍   │
+                  └────┬───────────────┬─────┘
+                       │               │
+             POST /scan│               │POST /report
+                       ↓               ↓
+        ┌───────────────────┐   ┌───────────────────┐
+        │  Scanner Container │   │  Report Container  │
+        │     (:5001)        │   │      (:5002)       │
+        │                    │   │                    │
+        │  scanner.py        │   │  report_generator   │
+        │  - 크롤링           │   │  dashboard_generator │
+        │  - 10종 취약점 검사  │   │  security_policy_    │
+        │    (SQLi/XSS/IDOR/  │   │    checker            │
+        │     JWT/Rate Limit  │   │  policy_report_       │
+        │     등)              │   │    generator          │
+        │  - 결과 JSON 생성    │   │                    │
+        └──────────┬─────────┘   └──────────┬─────────┘
+                   │                         │
+                   │      scan 결과 JSON      │
+                   └────────────►────────────┘
+                                │
+                                ↓
+                  ┌─────────────────────────┐
+                  │  /app/results/<job_id>/  │
+                  │                          │
+                  │  scan.log                │
+                  │  report.html / report.pdf │
+                  │  dashboard.html           │
+                  │  policy_report.html       │
+                  └────────────┬────────────┘
+                                │
+                                ↓
+                        Platform이 사용자에게
+                       다운로드 링크로 제공
 
-              ┌─────────────────────┐
-              │  scanner-results    │
-              │    Docker Volume    │
-              │                     │
-              │  result.json        │
-              │  report.html        │
-              │  report.pdf         │
-              └─────────────────────┘
-                         |
-                         ↓
-                  Platform 제공
-
-(scanner.py는 SQL Injection, XSS외에 다른 취약점 검사도 진행)
+Scanner는 SQL Injection, XSS 외에도 Stored XSS, Directory Traversal, File Upload, IDOR, Security Headers, JWT 검증 누락, Broken Authentication, Rate Limiting까지 총 10종의 검사를 수행합니다. Report는 스캔 결과를 바탕으로 취약점 상세 리포트, 종합 대시보드, 보안 정책 점검 리포트 3종의 산출물을 생성합니다.
 ```
 ---
 
@@ -117,8 +127,8 @@ E-COPS-vacation-project-main/
 |------|------|
 | Backend | Python, Flask |
 | Database | MySQL |
-| Scanner | Python, Requests, BeautifulSoup, Selenium |
-| Report | Python, Pandas, ReportLab |
+| Scanner | Python, Requests, BeautifulSoup |
+| Report | Python, Jinja2, Chart.js, ReportLab(PDF) |
 | Container | Docker, Docker Compose |
 | API | Swagger(OpenAPI) |
 
@@ -195,8 +205,8 @@ docker-compose ps
    - 보안 정책 점검 리포트의 일부 항목은 자동화 스캐너로 판별할 수 없는 영역(예: 비즈니스 로직 검증, 2차 인증 적용 여부 등)을 포함합니다.
    - 이러한 항목은 **Manual(수동 확인 필요)** 상태로 분류되며, 보안 담당자가 직접 확인 및 검토해야 합니다.
 
-3. **동적 크롤링 및 인증 세션 제약**
-   - Selenium 기반의 크롤러가 탑재되어 있으나, 과도하게 복잡한 자바스크립트(SPA) 기반 이벤트 페이지의 경우 일부 깊은 경로가 크롤링에서 누락될 수 있습니다.
+3. **크롤링 및 인증 세션 제약**
+   - 현재 크롤러(crawler.py)는 requests + BeautifulSoup 기반으로 동작하며, 자바스크립트 렌더링이 필요한 SPA(Single Page Application) 페이지의 일부 깊은 경로는 크롤링      에서 누락될 수 있습니다. 이런 라우트는 Swagger 문서를 시드로 병행 제공(--swagger 옵션)해 보완할 수 있습니다.
    - 폼 로그인 자동화가 설정되지 않은 경우, 로그인 이후의 비공개 엔드포인트에 대한 자동 진단 범위가 제한될 수 있습니다.
 
 4. **로그인 계정 잠금(Rate Limit) 및 재스캔 대기 시간 안내**
