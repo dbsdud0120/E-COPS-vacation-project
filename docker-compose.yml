@@ -25,24 +25,24 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       JWT_SECRET: ${JWT_SECRET}
 
-    # DB가 먼저 실행된 후 backend 실행
+    # DB가 healthy 상태가 된 후 backend 실행
     depends_on:
-      - db
-
-    # 공통 네트워크 사용
       db:
         condition: service_healthy
+
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
       interval: 3s
       timeout: 3s
       retries: 15
       start_period: 10s
+
+    # 공통 네트워크 사용
     networks:
       - security-network
 
 
-  # 웹/API 자동 진단 엔진 
+  # 웹/API 자동 진단 엔진
   scanner:
     # scanner 폴더의 Dockerfile 사용
     build:
@@ -50,21 +50,21 @@ services:
 
     container_name: security-scanner
 
-
     ports:
-    - "5001:5001
-    
+      - "5001:5001"
+
     # Scanner가 생성한 검사 결과(JSON)를 Report 컨테이너와 공유하기 위한 볼륨
     volumes:
       - scanner-results:/app/results
-
       - ./Backend/swagger.yaml:/app/swagger.yaml:ro
+
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health', timeout=2)"]
       interval: 3s
       timeout: 3s
       retries: 15
       start_period: 10s
+
     networks:
       - security-network
 
@@ -78,8 +78,7 @@ services:
     container_name: report-generator
 
     ports:
-    - "5002:5002"
-
+      - "5002:5002"
 
     # Scanner가 생성한 검사 결과(JSON)를 동일한 경로에서 읽기 위한 공유 볼륨
     volumes:
@@ -91,39 +90,30 @@ services:
       timeout: 3s
       retries: 15
       start_period: 10s
+
     networks:
       - security-network
 
+
   # 사용자 UI 및 Scanner/Report 실행 제어 플랫폼
   platform:
-
     # Platform Dockerfile 사용
     build:
       context: ./Platform
 
-
     container_name: security-platform
-
 
     # 사용자 접속 포트
     ports:
       - "8080:8080"
-
 
     # Scanner와 Report 결과 공유
     volumes:
       - scanner-results:/app/results
       - ./Scanner:/app/scanner
       - ./Report:/app/report
-
-
-    depends_on:
-      - backend
-      - scanner
-      - report
-
-
       - ./Backend/swagger.yaml:/app/swagger.yaml:ro
+
     depends_on:
       backend:
         condition: service_healthy
@@ -131,14 +121,17 @@ services:
         condition: service_healthy
       report:
         condition: service_healthy
+
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)"]
       interval: 3s
       timeout: 3s
       retries: 15
       start_period: 10s
+
     networks:
       - security-network
+
 
   # Nginx 리버스 프록시
   nginx:
@@ -180,6 +173,14 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
 
+    # DB 컨테이너 헬스체크 설정 (backend가 이 상태를 기다림)
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
+
     networks:
       - security-network
 
@@ -197,4 +198,3 @@ volumes:
 networks:
   security-network:
     driver: bridge
-
