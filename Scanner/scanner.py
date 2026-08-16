@@ -162,14 +162,20 @@ def run_scan(target_url: str, depth: int, check_names: list[str], swagger_source
     payloads_by_check = {name: load_payloads(name) for name in check_names}
 
     all_findings = []
-    total_pages = len(pages)
+
+    # total_pages(및 진행률 로그의 분모)는 실제로 검사가 수행되는 페이지 수만 반영해야 한다.
+    # status_code == -1(요청 실패/파괴적이라 건너뛴 URL)까지 분모에 포함하면, 그런 페이지가
+    # 목록 뒤쪽에 있을 때 마지막으로 출력되는 진행률이 (N-1/N)에서 멈춰 100%에 도달하지 못한다.
+    # 그래서 검사 가능한 페이지만 먼저 걸러낸 뒤 그 목록 기준으로 세고 순회한다.
+    scannable_pages = [page for page in pages if page.status_code != -1]
+    skipped_request_failed = len(pages) - len(scannable_pages)
+    total_pages = len(scannable_pages)
 
     print(f"[scanner] 취약점 점검 시작: 총 {total_pages}개 페이지, {len(check_names)}개 항목 ({', '.join(check_names)})")
+    if skipped_request_failed:
+        print(f"[scanner] 요청 실패(status_code=-1)로 검사 대상에서 제외된 페이지 {skipped_request_failed}개")
 
-    for page_idx, page in enumerate(pages, start=1):
-        if page.status_code == -1:
-            continue  # 요청 실패 페이지는 건너뜀
-
+    for page_idx, page in enumerate(scannable_pages, start=1):
         print(f"[scanner] ({page_idx}/{total_pages}) 페이지 점검 중: {page.url}")
 
         for check_name in check_names:
