@@ -62,6 +62,14 @@ def get_db():
     )
     return conn
 
+@app.route("/health")
+def health():
+    try:
+        conn = get_db()
+        conn.close()
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "detail": str(e)}), 503
 
 @app.route("/")
 def home():
