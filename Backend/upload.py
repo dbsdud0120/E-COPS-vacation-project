@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, send_from_directory, session
 import os
+import re
 import pymysql 
 from werkzeug.utils import secure_filename
 
@@ -19,6 +20,16 @@ ALLOWED_EXTENSIONS = {
     "pdf"
 }
 
+# 이중 확장자 우회 방지용: 파일명 어디에든 이 확장자들이 "."로 구분되어 섞여 있으면 거부
+# (예: shell.php.jpg -> 마지막 확장자만 보면 jpg라서 통과되지만, 실제로는 .php가 중간에 숨어있음)
+DANGEROUS_EXTENSIONS = {
+    "php", "php3", "php4", "php5", "phtml",
+    "jsp", "jspx", "asp", "aspx",
+    "sh", "cgi", "pl", "py", "exe",
+    "html", "htm", "svg",
+}
+
+
 def get_db():
     return pymysql.connect(
         host=os.getenv("MYSQL_HOST", "localhost"),
@@ -31,8 +42,21 @@ def get_db():
 
 def allowed_file(filename):
 
-    return "." in filename and \
-           filename.rsplit(".",1)[1].lower() in ALLOWED_EXTENSIONS
+    if "." not in filename:
+        return False
+
+    # 마지막 확장자가 허용 목록에 없으면 거부 (기존 검증)
+    if filename.rsplit(".", 1)[1].lower() not in ALLOWED_EXTENSIONS:
+        return False
+
+    # 파일명을 "."로 전부 쪼개서, 마지막 조각(=실제 확장자)을 제외한 나머지에
+    # 위험한 확장자가 섞여 있으면 거부 (예: shell.php.jpg -> ["shell","php","jpg"])
+    parts = [p.lower() for p in filename.split(".")]
+    middle_parts = parts[1:-1]  # 파일명 앞부분과 마지막 확장자를 제외한 중간 조각들
+    if any(p in DANGEROUS_EXTENSIONS for p in middle_parts):
+        return False
+
+    return True
 
 
 # ==========================

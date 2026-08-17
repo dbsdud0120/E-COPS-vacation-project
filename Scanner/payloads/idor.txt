@@ -1,4 +1,4 @@
 # 형식: username:password (한 줄에 하나, 최소 2개 있어야 계정 간 비교가 활성화됨)
-# 아래는 예시입니다. /signup으로 실제 테스트 계정을 먼저 만든 뒤 값을 바꿔주세요.
-testuser1:testpass1
-testuser2:testpass2
+# Backend/init_db.py가 시딩하는 테스트 계정 사용
+test1:12345678
+user1:12345678
